@@ -1,0 +1,51 @@
+SVN $Id: ChangeLog 47361 2013-05-21 20:54:30Z mlevy@ucar.edu $
+SVN $URL: https://svn-ccsm-models.cgd.ucar.edu/pop2/trunk_tags/cesm_pop_2_1_20130521/ChangeLog $
+===============================================================================
+Tag Creator: mlevy
+Developers:  mvertens
+Tag Date:    12 Dec 2013
+Tag Name:    mpas-o/trunk_tags/cesm_mpas-o_1_0_20131212
+Tag Summary: now runs with 1_3_beta04
+
+M    bld/mpas-o.buildexe.csh
+M    bld/mpas-o.buildnml.csh
+M    SVN_EXTERNAL_DIRECTORIES
+M    ChangeLog
+M    driver/mpaso_cpl_indices.F
+M    driver/ocn_comp_mct.F
+M    driver/Makefile
+ M   .
+
+===============================================================================
+Tag Creator: jedwards
+Developers:  jedwards
+Tag Date:    22 August 2013
+Tag Name:    mpas-o/trunk_tags/cesm_mpas-o_1_0_20130822
+Tag Summary: Redirects std output to ocn.log file and improves pio interface
+	                 Also allows use of SourceMods/src.mpas-o
+
+M             bld/mpas-o.buildexe.csh
+M             bld/mpas-o.buildnml.csh
+M             ChangeLog
+M             driver/ocn_comp_mct.F
+M             driver/Makefile
+
+===============================================================================
+Tag Creator: mlevy
+Developers:  mlevy, douglasj
+Tag Date:    26 June 2013
+Tag Name:    mpas-o/trunk_tags/cesm_mpas-o_1_0_20130626
+Tag Summary: Getting infrastructure together to run MPAS through the CESM
+             coupler. This initial tag runs in CESM 1.2 but requires source mods
+             to several files in scripts/ccsm_utils/Case.template as well as the
+             use of the -user_grid_file flag when creating the new case. Also,
+             you need to manually copy the MPAS grid file into
+             $CASEROOT/Buildconf/ (we need to work out where to keep these
+             files).
+             
+             The plan is to incorporate all those scripts modifications into the
+             cesm1_3_beta01 tag so running MPAS will be seamless, though more
+             debugging is needed at this stage. Running on a single task on
+             yellowstone, this tag dies in the 7th time step with the error
+             "Abort: NaN detected".
+===============================================================================
