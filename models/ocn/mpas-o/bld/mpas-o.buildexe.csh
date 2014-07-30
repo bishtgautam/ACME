@@ -12,7 +12,7 @@ echo -----------------------------------------------------------------
 
 cd $OBJROOT/ocn/source
 
-cp -fpR $CODEROOT/ocn/mpas-o/src/* .
+cp -fpR $CODEROOT/ocn/mpas-o/model/src/* .
 cp -fpR $CODEROOT/ocn/mpas-o/driver ocean_cesm_driver
 
 make CORE=ocean CESM=true DRIVER=ocean_cesm_driver || exit 5

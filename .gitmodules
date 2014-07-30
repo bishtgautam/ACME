@@ -1,0 +1,3 @@
+[submodule "mpas-o"]
+	path = models/ocn/mpas-o/model
+	url = git@github.com:MPAS-Dev/MPAS-Release
