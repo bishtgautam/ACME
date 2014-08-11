@@ -853,4 +853,10 @@ for mct, etc.
   <TRILINOS_PATH>$(TRILINOS_PATH)</TRILINOS_PATH>
 </compiler>
 
+<compiler COMPILER="pgi" MACH="mustang">
+  <ADD_CFLAGS> -mp=nonuma </ADD_CFLAGS>
+  <ADD_FFLAGS> -mp=nonuma </ADD_FFLAGS>
+  <ADD_SLIBS> -L$(NETCDF_PATH)\/lib -lnetcdff -lnetcdf </ADD_SLIBS>
+</compiler>
+
 </config_compilers>
