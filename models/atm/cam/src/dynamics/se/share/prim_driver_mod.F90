@@ -1407,6 +1407,7 @@ contains
 #if USE_CUDA_FORTRAN
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
     call copy_qdp_h2d( elem , n0_qdp )
+    call copy_qdp_h2d( elem , np1_qdp )
 #endif
 
     ! loop over rsplit vertically lagrangian timesteps
@@ -1430,6 +1431,7 @@ contains
 
 #if USE_CUDA_FORTRAN
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
+    call copy_qdp_d2h( elem , n0_qdp )
     call copy_qdp_d2h( elem , np1_qdp )
 #endif
 
