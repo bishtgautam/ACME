@@ -956,11 +956,13 @@ contains
           enddo
           call edgeVpack(edgeAdv1,elem(ie)%derived%eta_dot_dpdn(:,:,1:nlev),nlev,0,elem(ie)%desc)
        enddo
-
+!pw++
        call t_startf('pat_spelt_bexchV')
+!pw--
        call bndry_exchangeV(hybrid,edgeAdv1)
+!pw++
        call t_stopf('pat_spelt_bexchV')
-
+!pw--
        do ie=nets,nete
           call edgeVunpack(edgeAdv1,elem(ie)%derived%eta_dot_dpdn(:,:,1:nlev),nlev,0,elem(ie)%desc)
           do k=1,nlev
@@ -998,7 +1000,13 @@ contains
     
 !     call t_startf('spelt_depalg')
 !     call spelt_mcgregordss(elem,spelt,nets,nete, hybrid, deriv, dt, 3)
+!pw++
+    call t_startf('spelt_rkdss')
+!pw--
     call spelt_rkdss(elem,spelt,nets,nete, hybrid, deriv, dt, 3)
+!pw++
+    call t_stopf('spelt_rkdss')
+!pw--
 !     call t_stopf('spelt_depalg')
     
     ! ! end mcgregordss
@@ -1061,11 +1069,13 @@ contains
           enddo
           call edgeVpack(edgeAdv1,elem(ie)%derived%eta_dot_dpdn(:,:,1:nlev),nlev,0,elem(ie)%desc)
        enddo
-
+!pw++
        call t_startf('pat_fvm_bexchV')
+!pw--
        call bndry_exchangeV(hybrid,edgeAdv1)
+!pw++
        call t_stopf('pat_fvm_bexchV')
-
+!pw--
        do ie=nets,nete
           call edgeVunpack(edgeAdv1,elem(ie)%derived%eta_dot_dpdn(:,:,1:nlev),nlev,0,elem(ie)%desc)
           do k=1,nlev
@@ -1101,7 +1111,13 @@ contains
 !     call t_startf('fvm_depalg')
 
 !     call fvm_mcgregordss(elem,fvm,nets,nete, hybrid, deriv, dt, 3)
+!pw++
+    call t_startf('fvm_rkdss')
+!pw--
     call fvm_rkdss(elem,fvm,nets,nete, hybrid, deriv, dt, 3)
+!pw++
+    call t_stopf('fvm_rkdss')
+!pw--
 !     call t_stopf('fvm_depalg')
 
 !------------------------------------------------------------------------------------    
@@ -1196,21 +1212,32 @@ contains
 
     !rhs_multiplier is for obtaining dp_tracers at each stage:
     !dp_tracers(stage) = dp - rhs_multiplier*dt*divdp_proj
-
+!pw++
     call t_startf('euler_step_0')
+!pw--
     rhs_multiplier = 0
     call euler_step( np1_qdp , n0_qdp  , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSdiv_vdp_ave , rhs_multiplier )
+!pw++
     call t_stopf('euler_step_0')
+!pw--
 
+!pw++
     call t_startf('euler_step_1')
+!pw--
     rhs_multiplier = 1
     call euler_step( np1_qdp , np1_qdp , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSeta         , rhs_multiplier )
+!pw++
     call t_stopf('euler_step_1')
+!pw--
 
+!pw++
     call t_startf('euler_step_2')
+!pw--
     rhs_multiplier = 2
     call euler_step( np1_qdp , np1_qdp , dt/2 , elem , hvcoord , hybrid , deriv , nets , nete , DSSomega       , rhs_multiplier )
+!pw++
     call t_stopf('euler_step_2')
+!pw--
 
     !to finish the 2D advection step, we need to average the t and t+2 results to get a second order estimate for t+1.  
     call qdp_time_avg( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
@@ -1232,7 +1259,7 @@ contains
 
   subroutine qdp_time_avg( elem , rkstage , n0_qdp , np1_qdp , limiter_option , nu_p , nets , nete )
 #if USE_CUDA_FORTRAN
-    use cuda_mod, only: qdp_time_avg_cuda
+    use cuda_mod, only: qdp_time_avg_cuda, copy_qdp_h2d
 #endif
     implicit none
     type(element_t)     , intent(inout) :: elem(:)
@@ -1274,7 +1301,7 @@ contains
   use bndry_mod      , only : bndry_exchangev
   use hybvcoord_mod  , only : hvcoord_t
 #if USE_CUDA_FORTRAN
-  use cuda_mod, only: euler_step_cuda
+  use cuda_mod, only: euler_step_cuda, copy_qdp_h2d
 #endif
   implicit none
   integer              , intent(in   )         :: np1_qdp, n0_qdp
@@ -1305,11 +1332,15 @@ contains
     return
   endif
 #if USE_CUDA_FORTRAN
+! if (rhs_multiplier == 0) call copy_qdp_h2d(elem,n0_qdp)
   call euler_step_cuda( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
   return
 #endif
 ! call t_barrierf('sync_euler_step', hybrid%par%comm)
 !   call t_startf('euler_step')
+!pw++
+  call t_startf('euler_step')
+!pw--
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   compute Q min/max values for lim8
@@ -1525,13 +1556,17 @@ contains
     endif
   enddo
 
+!pw++
   call t_startf('eus_bexchV')
+!pw--
   if ( DSSopt == DSSno_var ) then
     call bndry_exchangeV( hybrid , edgeAdv    )
   else
     call bndry_exchangeV( hybrid , edgeAdv_p1 )
   endif
+!pw++
   call t_stopf('eus_bexchV')
+!pw--
 
   do ie = nets , nete
     if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
@@ -1570,6 +1605,9 @@ contains
 !$OMP BARRIER
 #endif
 #endif
+!pw++
+  call t_stopf('euler_step')
+!pw--
 !   call t_stopf('euler_step')
   end subroutine euler_step
 
@@ -1669,13 +1707,17 @@ contains
 
   end do
 
+!pw++
   call t_startf('eus_dg_bexchV')
+!pw--
   if(DSSopt==DSSno_var)then
      call bndry_exchangeV(hybrid,edgeAdv)
   else
      call bndry_exchangeV(hybrid,edgeAdv_p1)
   endif
+!pw++
   call t_stopf('eus_dg_bexchV')
+!pw--
 
   do ie=nets,nete
 
@@ -2083,7 +2125,7 @@ contains
   !
   !  For correct scaling, dt2 should be the same 'dt2' used in the leapfrog advace
 #if USE_CUDA_FORTRAN
-  use cuda_mod       , only : advance_hypervis_scalar_cuda
+  use cuda_mod       , only : advance_hypervis_scalar_cuda, copy_qdp_d2h
 #endif
   use kinds          , only : real_kind
   use dimensions_mod , only : np, nlev
@@ -2123,6 +2165,7 @@ contains
   if ( hypervis_order /= 2 ) return
 #if USE_CUDA_FORTRAN
   call advance_hypervis_scalar_cuda( edgeAdv , elem , hvcoord , hybrid , deriv , nt , nt_qdp , nets , nete , dt2 )
+! call copy_qdp_d2h(elem,nt_qdp)
   return
 #endif
 !   call t_barrierf('sync_advance_hypervis_scalar', hybrid%par%comm)
@@ -2190,9 +2233,13 @@ contains
       call edgeVpack  ( edgeAdv , elem(ie)%state%Qdp(:,:,:,:,nt_qdp) , qsize*nlev , 0 , elem(ie)%desc )
     enddo
 
+!pw++
     call t_startf('ah_scalar_bexchV')
+!pw--
     call bndry_exchangeV( hybrid , edgeAdv )
+!pw++
     call t_stopf('ah_scalar_bexchV')
+!pw--
     
     do ie = nets , nete
       call edgeVunpack( edgeAdv , elem(ie)%state%Qdp(:,:,:,:,nt_qdp) , qsize*nlev , 0 , elem(ie)%desc )
@@ -2244,7 +2291,7 @@ contains
   use fvm_control_volume_mod, only : fvm_struct
 #endif    
 #if USE_CUDA_FORTRAN
-  use cuda_mod, only: vertical_remap_cuda
+  use cuda_mod, only: vertical_remap_cuda, copy_qdp_d2h
 #endif
   
 #if defined(_SPELT)
@@ -2268,6 +2315,7 @@ contains
 
 #if USE_CUDA_FORTRAN
   call vertical_remap_cuda(elem,fvm,hvcoord,dt,np1,np1_qdp,nets,nete)
+! call copy_qdp_d2h(elem,np1_qdp)
   return
 #endif
 

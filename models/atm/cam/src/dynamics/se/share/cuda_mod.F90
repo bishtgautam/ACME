@@ -96,10 +96,6 @@ module cuda_mod
   real (kind=real_kind),device,allocatable,dimension(:,:,:,:)     :: dp_star_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: qmin_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: qmax_d
-  integer              ,device,allocatable,dimension(:)           :: send_nelem_d
-  integer              ,device,allocatable,dimension(:)           :: recv_nelem_d
-  integer              ,device,allocatable,dimension(:,:)         :: send_indices_d
-  integer              ,device,allocatable,dimension(:,:)         :: recv_indices_d
   integer              ,device,allocatable,dimension(:)           :: recv_internal_indices_d
   integer              ,device,allocatable,dimension(:)           :: recv_external_indices_d
   real (kind=real_kind),device,allocatable,dimension(:,:,:)       :: recvbuf_d
@@ -176,7 +172,7 @@ contains
     use element_mod   , only: element_t
     use derivative_mod, only: derivative_t
     use hybvcoord_mod, only: hvcoord_t
-    use physical_constants, only: rrearth_mod => rrearth
+    use physical_constants, only: rrearth
     implicit none
     type(element_t)   , intent(in) :: elem(:)
     type(derivative_t), intent(in) :: deriv
@@ -192,7 +188,7 @@ contains
     logical,allocatable,dimension(:)   :: elem_computed
     integer :: total_work
 
-    rrearth_d = rrearth_mod
+    rrearth_d = rrearth
 
     max_neigh_edges_d = max_neigh_edges
     max_corner_elem_d = max_corner_elem
@@ -284,8 +280,6 @@ contains
     ! The PGI compiler with cuda enabled errors when allocating arrays of zero
     !   size - here when using only one MPI task
     if (nSendCycles > 0) then
-      allocate( send_nelem_d             (       nSendCycles                  ) , stat = ierr ); _CHECK(__LINE__)
-      allocate( send_indices_d           (nelemd,nSendCycles                  ) , stat = ierr ); _CHECK(__LINE__)
       allocate( sendbuf_h                (nlev*qsize_d,mx_send_len,nSendCycles) , stat = ierr ); _CHECK(__LINE__)
       allocate( send_elem_mask           (nelemd,nSendCycles                  ) , stat = ierr ); _CHECK(__LINE__)
       allocate( send_nelem               (       nSendCycles                  ) , stat = ierr ); _CHECK(__LINE__)
@@ -295,8 +289,6 @@ contains
     endif
 
     if (nRecvCycles > 0) then
-      allocate( recv_nelem_d             (       nRecvCycles                  ) , stat = ierr ); _CHECK(__LINE__)
-      allocate( recv_indices_d           (nelemd,nRecvCycles                  ) , stat = ierr ); _CHECK(__LINE__)
       allocate( recvbuf_h                (nlev*qsize_d,mx_recv_len,nRecvCycles) , stat = ierr ); _CHECK(__LINE__)
       allocate( recvbuf_d                (nlev*qsize_d,mx_recv_len,nRecvCycles) , stat = ierr ); _CHECK(__LINE__)
       allocate( recv_elem_mask           (nelemd,nRecvCycles                  ) , stat = ierr ); _CHECK(__LINE__)
@@ -359,15 +351,6 @@ contains
     !For efficient MPI, PCI-e, packing, and unpacking, we need to separate out the cycles by dependence. Once on cycle has packed, then stage the PCI-e D2H, MPI, PCI-e H2D, & internal unpack
     !We begin by testing what elements contribute to packing in what cycle's MPI data.
     do ie = 1,nelemd
-      send_elem_mask(ie,:) = .false.
-      do icycle = 1 , nSendCycles
-        do n = 1 , max_neigh_edges
-          if ( elem(ie)%desc%putmapP(n) >= pSchedule%SendCycle(icycle)%ptrP .and. &
-               elem(ie)%desc%putmapP(n) <= pSchedule%SendCycle(icycle)%ptrP + pSchedule%SendCycle(icycle)%lengthP-1 ) then
-            send_elem_mask(ie,icycle) = .true.
-          endif
-        enddo
-      enddo
       recv_elem_mask(ie,:) = .false.
       do icycle = 1 , nRecvCycles
         do n = 1 , max_neigh_edges
@@ -379,33 +362,6 @@ contains
       enddo
     enddo
     edgebuf_d = 0.
-
-    elem_computed = .false.   !elem_computed tells us whether an element has been touched by a cycle
-    !This pass accumulates for each cycle incides participating in the MPI_Isend
-    do icycle = 1 , nSendCycles
-      send_nelem(icycle) = 0
-      do ie = 1 , nelemd
-        if ( send_elem_mask(ie,icycle) ) then
-          send_nelem(icycle) = send_nelem(icycle) + 1
-          send_indices(send_nelem(icycle),icycle) = ie
-          elem_computed(ie) = .true.
-        endif
-      enddo
-    enddo
-    total_work = sum(send_nelem)
-    do ie = 1 , nelemd
-      if (.not. elem_computed(ie)) total_work = total_work + 1
-    enddo
-    !This pass adds to each cycle the internal elements not participating in MPI_Isend, so as to even distribute them across cycles.
-    do icycle = 1 , nSendCycles
-      do ie = 1 , nelemd
-        if ( .not. elem_computed(ie) .and. send_nelem(icycle) < int(ceiling(total_work/dble(nSendCycles))) ) then
-          send_nelem(icycle) = send_nelem(icycle) + 1
-          send_indices(send_nelem(icycle),icycle) = ie
-          elem_computed(ie) = .true.
-        endif
-      enddo
-    enddo
 
     elem_computed = .false.
     !This pass accumulates for each cycle incides participating in the MPI_Irecv
@@ -435,30 +391,8 @@ contains
         recv_internal_indices(recv_internal_nelem) = ie
       endif
     enddo
-    !This pass adds to each cycle the internal elements not participating in MPI_Irecv, so as to even distribute them across cycles.
-    do icycle = 1 , nRecvCycles
-      do ie = 1 , nelemd
-        if ( .not. elem_computed(ie) .and. recv_nelem(icycle) < int(ceiling(nelemd/dble(nRecvCycles))) ) then
-          recv_nelem(icycle) = recv_nelem(icycle) + 1
-          recv_indices(recv_nelem(icycle),icycle) = ie
-          elem_computed(ie) = .true.
-        endif
-      enddo
-    enddo
-
-    old_peu = .false.
-    do icycle = 1 , nSendCycles
-      if (send_nelem(icycle) == 0) then
-        write(*,*) 'WARNING: ZERO ELEMENT CYCLES EXIST. A BETTER DECOMPOSITION WILL RUN FASTER IN THE PACK-EXCHANGE-UNPACK.'
-        old_peu = .true.
-      endif
-    enddo
 
     write(*,*) "Sending element & cycle informationt to device"
-    ierr = cudaMemcpy(send_nelem_d           ,send_nelem           ,size(send_nelem           ),cudaMemcpyHostToDevice); _CHECK(__LINE__)
-    ierr = cudaMemcpy(recv_nelem_d           ,recv_nelem           ,size(recv_nelem           ),cudaMemcpyHostToDevice); _CHECK(__LINE__)
-    ierr = cudaMemcpy(send_indices_d         ,send_indices         ,size(send_indices         ),cudaMemcpyHostToDevice); _CHECK(__LINE__)
-    ierr = cudaMemcpy(recv_indices_d         ,recv_indices         ,size(recv_indices         ),cudaMemcpyHostToDevice); _CHECK(__LINE__)
     ierr = cudaMemcpy(recv_internal_indices_d,recv_internal_indices,size(recv_internal_indices),cudaMemcpyHostToDevice); _CHECK(__LINE__)
     ierr = cudaMemcpy(recv_external_indices_d,recv_external_indices,size(recv_external_indices),cudaMemcpyHostToDevice); _CHECK(__LINE__)
 
@@ -566,7 +500,10 @@ contains
   integer :: ierr
   type(dim3) :: blockdim , griddim
 
-  call t_startf('euler_step')
+!pw  call t_startf('euler_step')
+!pw++
+  call t_startf('euler_step_cuda')
+!pw--
 
   if (limiter_option == 8) then
     write(*,*) 'CUDA_MOD IS NOT INTENDED FOR USE WITH LIMITER_OPTION == 8 AT THIS TIME!'
@@ -579,18 +516,18 @@ contains
 !    stop
 !  endif
 
-! if (rhs_multiplier == 0) then
-!   do ie = nets , nete
-!     qdp1_h(:,:,:,ie) = elem(ie)%state%Qdp(:,:,:,1,n0_qdp)
-!   enddo
-!   !$OMP BARRIER
-!   !$OMP MASTER
-!   ierr = cudaMemcpyAsync( qdp1_d , qdp1_h , size( qdp1_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
-!   blockdim = dim3( np     , np , nlev )
-!   griddim  = dim3( nelemd , 1  , 1    )
-!   call unpack_qdp1<<<griddim,blockdim,0,streams(1)>>>( qdp1_d , qdp_d , n0_qdp , nets , nete ); _CHECK(__LINE__)
-!   !$OMP END MASTER
-! endif
+  if (rhs_multiplier == 0) then
+    do ie = nets , nete
+      qdp1_h(:,:,:,ie) = elem(ie)%state%Qdp(:,:,:,1,n0_qdp)
+    enddo
+    !$OMP BARRIER
+    !$OMP MASTER
+    ierr = cudaMemcpyAsync( qdp1_d , qdp1_h , size( qdp1_h ) , cudaMemcpyHostToDevice , streams(1) ); _CHECK(__LINE__)
+    blockdim = dim3( np     , np , nlev )
+    griddim  = dim3( nelemd , 1  , 1    )
+    call unpack_qdp1<<<griddim,blockdim,0,streams(1)>>>( qdp1_d , qdp_d , n0_qdp , nets , nete ); _CHECK(__LINE__)
+    !$OMP END MASTER
+  endif
 
   rhs_viss = 0
   !   2D Advection step
@@ -612,7 +549,7 @@ contains
   griddim  = dim3( qsize_d , nelemd , 1    )
   call euler_step_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , spheremp_d , qmin_d , qmax_d , dp_d , vstar_d , divdp_d , hybi_d ,               &
                                                               dpdiss_biharmonic_d , qtens_biharmonic_d , metdet_d , rmetdet_d , dinv_d , deriv_dvv_d , &
-                                                              n0_qdp , np1_qdp , rhs_viss , dt , nu_p , nu_q , limiter_option , 1 , nelemd , rrearth_d ); _CHECK(__LINE__)
+                                                              n0_qdp , np1_qdp , rhs_viss , dt , nu_p , nu_q , limiter_option , 1 , nelemd ); _CHECK(__LINE__)
   if ( limiter_option == 4 ) then
     blockdim = dim3( np      , np     , nlev )
     griddim  = dim3( qsize_d , nelemd , 1    )
@@ -631,7 +568,13 @@ contains
       enddo
       call edgeVpack(edgeAdvDSS,DSSvar(:,:,1:nlev),nlev,0,elem(ie)%desc)
     enddo
+!pw++
+    call t_startf('eus_cuda_bexchV')
+!pw--
     call bndry_exchangeV(hybrid,edgeAdvDSS)
+!pw++
+    call t_stopf('eus_cuda_bexchV')
+!pw--
     do ie = nets , nete
       if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
       if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
@@ -643,7 +586,13 @@ contains
     enddo
   endif
 !$OMP MASTER
+!pw++
+  call t_startf('eus_cuda_peus')
+!pw--
   call pack_exchange_unpack_stage(np1_qdp,hybrid,qdp_d,timelevels)
+!pw++
+  call t_stopf('eus_cuda_peus')
+!pw--
   blockdim = dim3( np*np   , nlev   , 1 )
   griddim  = dim3( qsize_d , nelemd , 1 )
   call euler_hypervis_kernel_last<<<griddim,blockdim>>>( qdp_d , rspheremp_d , 1 , nelemd , np1_qdp ); _CHECK(__LINE__)
@@ -651,7 +600,10 @@ contains
 !$OMP END MASTER
 !$OMP BARRIER
 
-  call t_stopf('euler_step')
+!pw++
+  call t_stopf('euler_step_cuda')
+!pw--
+!pw  call t_stopf('euler_step')
 end subroutine euler_step_cuda
 
 
@@ -736,29 +688,41 @@ subroutine advance_hypervis_scalar_cuda( edgeAdv , elem , hvcoord , hybrid , der
     blockdim = dim3( np     , np , nlev )
     griddim  = dim3( nelemd , 1  , 1    )
     call hypervis_kernel1<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , dp_d , dinv_d , variable_hyperviscosity_d , dpdiss_ave_d , spheremp_d , &
-                                                              deriv_dvv_d , hyai_d , hybi_d , hvcoord%ps0 , 1 , nelemd , dt , nt_qdp , nu_p , rrearth_d ); _CHECK(__LINE__)
+                                                              deriv_dvv_d , hyai_d , hybi_d , hvcoord%ps0 , nets , nete , dt , nt_qdp , nu_p ); _CHECK(__LINE__)
     ierr = cudaThreadSynchronize()
 
+!pw++
+    call t_startf('ahs_cuda_peus1')
+!pw--
     call pack_exchange_unpack_stage(1,hybrid,qtens_d,1)
+!pw++
+    call t_stopf('ahs_cuda_peus1')
+!pw--
     ierr = cudaThreadSynchronize()
 
     !KERNEL 2
     blockdim = dim3( np     , np , nlev )
     griddim  = dim3( nelemd , 1  , 1    )
     call hypervis_kernel2<<<griddim,blockdim,0,streams(1)>>>( qdp_d , qtens_d , dp_d , dinv_d , variable_hyperviscosity_d , spheremp_d , rspheremp_d , deriv_dvv_d , &
-                                                              nu_q , 1 , nelemd , dt , nt_qdp , rrearth_d ); _CHECK(__LINE__)
+                                                              nu_q , nets , nete , dt , nt_qdp ); _CHECK(__LINE__)
     blockdim = dim3( np, np, nlev )
     griddim  = dim3( qsize_d, nelemd , 1 )
-    call limiter2d_zero_kernel<<<griddim,blockdim,0,streams(1)>>>(qdp_d,1,nelemd,nt_qdp); _CHECK(__LINE__)
+    call limiter2d_zero_kernel<<<griddim,blockdim,0,streams(1)>>>(qdp_d,nets,nete,nt_qdp); _CHECK(__LINE__)
     ierr = cudaThreadSynchronize()
 
+!pw++
+    call t_startf('ahs_cuda_peus2')
+!pw--
     call pack_exchange_unpack_stage(nt_qdp,hybrid,qdp_d,timelevels)
+!pw++
+    call t_stopf('ahs_cuda_peus2')
+!pw--
     ierr = cudaThreadSynchronize()
 
     !KERNEL 3
     blockdim = dim3( np * np , nlev   , 1 )
     griddim  = dim3( qsize_d , nelemd , 1 )
-    call euler_hypervis_kernel_last<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rspheremp_d , 1 , nelemd , nt_qdp ); _CHECK(__LINE__)
+    call euler_hypervis_kernel_last<<<griddim,blockdim,0,streams(1)>>>( qdp_d , rspheremp_d , nets , nete , nt_qdp ); _CHECK(__LINE__)
     blockdim = dim3( np , np , nlev )
     griddim  = dim3( nelemd , 1 , 1 )
     call pack_qdp1<<<griddim,blockdim,0,streams(1)>>>( qdp1_d , qdp_d , nt_qdp , 1 , nelemd ); _CHECK(__LINE__)
@@ -769,7 +733,6 @@ subroutine advance_hypervis_scalar_cuda( edgeAdv , elem , hvcoord , hybrid , der
     do ie = nets , nete
       elem(ie)%state%Qdp(:,:,:,1,nt_qdp) = qdp1_h(:,:,:,ie)
     enddo
-!$OMP BARRIER
   enddo
 
   call t_stopf('advance_hypervis_scalar_cuda')
@@ -825,7 +788,7 @@ end subroutine qdp_time_avg_kernel
 
 attributes(global) subroutine euler_step_kernel1( Qdp , spheremp , qmin , qmax , dp , vstar , divdp , hybi ,                   &
                                                   dpdiss_biharmonic , qtens_biharmonic , metdet , rmetdet , dinv , deriv_dvv , &
-                                                  n0_qdp , np1_qdp , rhs_viss , dt , nu_p , nu_q , limiter_option , nets , nete , rrearth )
+                                                  n0_qdp , np1_qdp , rhs_viss , dt , nu_p , nu_q , limiter_option , nets , nete )
   implicit none
   real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
@@ -841,7 +804,7 @@ attributes(global) subroutine euler_step_kernel1( Qdp , spheremp , qmin , qmax ,
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: rmetdet
   real(kind=real_kind), dimension(np,np,2,2                    ,nets:nete), intent(in   ) :: dinv
   real(kind=real_kind), dimension(np,np                                  ), intent(in   ) :: deriv_dvv
-  real(kind=real_kind), value                                             , intent(in   ) :: dt, nu_q, nu_p, rrearth
+  real(kind=real_kind), value                                             , intent(in   ) :: dt, nu_q, nu_p
   integer, value                                                          , intent(in   ) :: n0_qdp, np1_qdp, rhs_viss, limiter_option, nets, nete
   integer :: i , j , k , q , ie , ij , ijk
   real(kind=real_kind), dimension(np*np+1,nlev,2), shared :: vstar_s
@@ -884,7 +847,7 @@ attributes(global) subroutine euler_step_kernel1( Qdp , spheremp , qmin , qmax ,
 
   !Begin the kernel
   qtmp = Qdp(i,j,k,q,n0_qdp,ie)
-  qtens_s(ij,k) = qtmp - dt * divergence_sphere( i , j , ie , k , ij , vstar_s , qtmp , metdet_s , rmetdet_s , dinv , deriv_dvv_s , nets , nete , rrearth )
+  qtens_s(ij,k) = qtmp - dt * divergence_sphere( i , j , ie , k , ij , vstar_s , qtmp , metdet_s , rmetdet_s , dinv , deriv_dvv_s , nets , nete )
   if ( rhs_viss /= 0 ) qtens_s(ij,k) = qtens_s(ij,k) + qtens_biharmonic(i,j,k,q,ie)
   call syncthreads()
   Qdp(i,j,k,q,np1_qdp,ie) = spheremp_s(ij) * Qtens_s(ij,k)
@@ -892,7 +855,7 @@ end subroutine euler_step_kernel1
 
 
 
-attributes(device) function divergence_sphere(i,j,ie,k,ij,Vstar,qtmp,metdet,rmetdet,dinv,deriv_dvv,nets,nete,rrearth) result(dp_star)
+attributes(device) function divergence_sphere(i,j,ie,k,ij,Vstar,qtmp,metdet,rmetdet,dinv,deriv_dvv,nets,nete) result(dp_star)
   implicit none
   integer,              intent(in) :: i, j, ie, k, ij, nets, nete
   real(kind=real_kind), intent(in) :: Dinv     (np*np,2,2,nets:nete)
@@ -900,7 +863,7 @@ attributes(device) function divergence_sphere(i,j,ie,k,ij,Vstar,qtmp,metdet,rmet
   real(kind=real_kind), intent(in) :: rmetdet  (np*np+1)
   real(kind=real_kind), intent(in) :: deriv_dvv(np*np+1)
   real(kind=real_kind), intent(in) :: Vstar    (np*np+1,nlev,2)
-  real(kind=real_kind), intent(in), value :: qtmp, rrearth
+  real(kind=real_kind), intent(in), value :: qtmp
   real(kind=real_kind)             :: dp_star
   real(kind=real_kind), shared :: gv(np*np,nlev,2)
   integer :: s
@@ -914,7 +877,7 @@ attributes(device) function divergence_sphere(i,j,ie,k,ij,Vstar,qtmp,metdet,rmet
     divtemp = divtemp + deriv_dvv((i-1)*np+s) * gv((j-1)*np+s,k,1)
     vvtemp  = vvtemp  + deriv_dvv((j-1)*np+s) * gv((s-1)*np+i,k,2)
   end do
-  dp_star = ( divtemp + vvtemp ) * ( rmetdet(ij) * rrearth )
+  dp_star = ( divtemp + vvtemp ) * ( rmetdet(ij) * rrearth_d )
 end function divergence_sphere
 
 
@@ -1029,18 +992,18 @@ subroutine pack_exchange_unpack_stage(np1,hybrid,array_in,tl_in)
     griddim6  = dim3( qsize_d , recv_external_nelem , 1    )
     call edgeVpack_kernel_stage<<<griddim6,blockdim6,0,streams(1)>>>(edgebuf_d,array_in,putmapP_d,reverse_d,nbuf,0,1,nelemd,np1,recv_external_indices_d,tl_in); _CHECK(__LINE__)
   endif
+  do icycle = 1 , nSendCycles
+    pCycle => pSchedule%SendCycle(icycle)
+    iptr   =  pCycle%ptrP
+    ierr = cudaMemcpyAsync(sendbuf_h(1,1,icycle),edgebuf_d(1,iptr),size(sendbuf_h(1:nlyr,1:pCycle%lengthP,icycle)),cudaMemcpyDeviceToHost,streams(1)); _CHECK(__LINE__)
+  enddo
   if ( recv_internal_nelem > 0 ) then
     blockdim6 = dim3( np      , np     , nlev )
     griddim6  = dim3( qsize_d , recv_internal_nelem , 1    )
     call edgeVpack_kernel_stage<<<griddim6,blockdim6,0,streams(2)>>>(edgebuf_d,array_in,putmapP_d,reverse_d,nbuf,0,1,nelemd,np1,recv_internal_indices_d,tl_in); _CHECK(__LINE__)
     call edgeVunpack_kernel_stage<<<griddim6,blockdim6,0,streams(2)>>>(edgebuf_d,array_in,getmapP_d,nbuf,0,1,nelemd,np1,recv_internal_indices_d,tl_in); _CHECK(__LINE__)
   endif
-  do icycle = 1 , nSendCycles
-    pCycle => pSchedule%SendCycle(icycle)
-    iptr   =  pCycle%ptrP
-    ierr = cudaMemcpyAsync(sendbuf_h(1,1,icycle),edgebuf_d(1,iptr),size(sendbuf_h(1:nlyr,1:pCycle%lengthP,icycle)),cudaMemcpyDeviceToHost,streams(1)); _CHECK(__LINE__)
-  enddo
-  ierr = cudaThreadSynchronize()
+  ierr = cudaStreamSynchronize(streams(1))
   do icycle = 1 , nSendCycles
     pCycle => pSchedule%SendCycle(icycle)
     dest   =  pCycle%dest - 1
@@ -1050,13 +1013,13 @@ subroutine pack_exchange_unpack_stage(np1,hybrid,array_in,tl_in)
     call MPI_Isend(sendbuf_h(1,1,icycle),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
   enddo
   call MPI_WaitAll(nRecvCycles,Rrequest,status,ierr)
-  call MPI_WaitAll(nSendCycles,Srequest,status,ierr)
   !When this cycle's MPI transfer is compliete, then call the D2H memcopy asynchronously
   do icycle = 1 , nRecvCycles
     pCycle => pSchedule%RecvCycle(icycle)
     iptr   =  pCycle%ptrP
     ierr = cudaMemcpyAsync(edgebuf_d(1,iptr),recvbuf_h(1,1,icycle),size(recvbuf_h(1:nlyr,1:pCycle%lengthP,icycle)),cudaMemcpyHostToDevice,streams(1)); _CHECK(__LINE__)
   enddo
+  call MPI_WaitAll(nSendCycles,Srequest,status,ierr)
   if ( recv_external_nelem > 0 ) then
     blockdim6 = dim3( np      , np                  , nlev )
     griddim6  = dim3( qsize_d , recv_external_nelem , 1    )
@@ -1348,7 +1311,7 @@ end subroutine edgeVunpack_kernel
 
 
 
-attributes(global) subroutine hypervis_kernel1( Qdp , qtens , dp , dinv , variable_hyperviscosity , dpdiss_ave , spheremp , deriv_dvv , hyai , hybi , ps0 , nets , nete , dt , nt , nu_p , rrearth )
+attributes(global) subroutine hypervis_kernel1( Qdp , qtens , dp , dinv , variable_hyperviscosity , dpdiss_ave , spheremp , deriv_dvv , hyai , hybi , ps0 , nets , nete , dt , nt , nu_p )
   implicit none
   real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(in   ) :: Qdp
   real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(  out) :: Qtens
@@ -1360,7 +1323,7 @@ attributes(global) subroutine hypervis_kernel1( Qdp , qtens , dp , dinv , variab
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: variable_hyperviscosity
   real(kind=real_kind), dimension(np,np,nlev                   ,nets:nete), intent(in   ) :: dpdiss_ave
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
-  real(kind=real_kind), value                                             , intent(in   ) :: dt , ps0 , nu_p , rrearth
+  real(kind=real_kind), value                                             , intent(in   ) :: dt , ps0 , nu_p
   integer, value                                                          , intent(in   ) :: nets , nete , nt
   real(kind=real_kind), dimension(np,np,2,nlev), shared :: s
   real(kind=real_kind), dimension(np,np,4  ), shared :: dinv_s
@@ -1386,13 +1349,13 @@ attributes(global) subroutine hypervis_kernel1( Qdp , qtens , dp , dinv , variab
       s(i,j,1,iz) = dp0 * Qdp(i,j,k,q,nt,ie) / dp(i,j,k,ie)
     endif
     call syncthreads()
-    qtens(i,j,k,q,ie) = laplace_sphere_wk(i,j,ie,iz,s,dinv_s,spheremp_s,variable_hyperviscosity_s,deriv_dvv,nets,nete,rrearth)
+    qtens(i,j,k,q,ie) = laplace_sphere_wk(i,j,ie,iz,s,dinv_s,spheremp_s,variable_hyperviscosity_s,deriv_dvv,nets,nete)
   enddo
 end subroutine hypervis_kernel1
 
 
 
-attributes(global) subroutine hypervis_kernel2( Qdp , qtens , dp , dinv , variable_hyperviscosity , spheremp , rspheremp , deriv_dvv , nu_q , nets , nete , dt , nt , rrearth )
+attributes(global) subroutine hypervis_kernel2( Qdp , qtens , dp , dinv , variable_hyperviscosity , spheremp , rspheremp , deriv_dvv , nu_q , nets , nete , dt , nt )
   implicit none
   real(kind=real_kind), dimension(np,np,nlev,qsize_d,timelevels,nets:nete), intent(inout) :: Qdp
   real(kind=real_kind), dimension(np,np,nlev,qsize_d           ,nets:nete), intent(in   ) :: Qtens
@@ -1402,7 +1365,7 @@ attributes(global) subroutine hypervis_kernel2( Qdp , qtens , dp , dinv , variab
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: variable_hyperviscosity
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: spheremp
   real(kind=real_kind), dimension(np,np                        ,nets:nete), intent(in   ) :: rspheremp
-  real(kind=real_kind), value                                             , intent(in   ) :: dt, nu_q , rrearth
+  real(kind=real_kind), value                                             , intent(in   ) :: dt, nu_q
   integer, value                                                          , intent(in   ) :: nets , nete , nt
   real(kind=real_kind), dimension(np,np,2,nlev), shared :: s
   real(kind=real_kind), dimension(np,np,4  ), shared :: dinv_s
@@ -1425,39 +1388,37 @@ attributes(global) subroutine hypervis_kernel2( Qdp , qtens , dp , dinv , variab
   do q = 1 , qsize_d
     s(i,j,1,iz) = rspheremp_s(i,j)*qtens(i,j,k,q,ie)
     call syncthreads()
-    Qdp(i,j,k,q,nt,ie) = Qdp(i,j,k,q,nt,ie)*spheremp_s(i,j)-dt*nu_q*laplace_sphere_wk(i,j,ie,iz,s,dinv_s,spheremp_s,variable_hyperviscosity_s,deriv_dvv,nets,nete,rrearth)
+    Qdp(i,j,k,q,nt,ie) = Qdp(i,j,k,q,nt,ie)*spheremp_s(i,j)-dt*nu_q*laplace_sphere_wk(i,j,ie,iz,s,dinv_s,spheremp_s,variable_hyperviscosity_s,deriv_dvv,nets,nete)
   enddo
 end subroutine hypervis_kernel2
 
 
 
-attributes(device) function laplace_sphere_wk(i,j,ie,iz,s,dinv,spheremp,variable_hyperviscosity,deriv_dvv,nets,nete,rrearth) result(lapl)
+attributes(device) function laplace_sphere_wk(i,j,ie,iz,s,dinv,spheremp,variable_hyperviscosity,deriv_dvv,nets,nete) result(lapl)
   implicit none
-  integer,                                              intent(in   ) :: nets, nete, i, j, ie, iz
+  integer,                                              intent(in) :: nets, nete, i, j, ie, iz
   real(kind=real_kind), dimension(np,np,2,nlev)       , intent(inout) :: s
-  real(kind=real_kind), dimension(np,np,2,2          ), intent(in   ) :: dinv
-  real(kind=real_kind), dimension(np,np              ), intent(in   ) :: deriv_dvv
-  real(kind=real_kind), dimension(np,np              ), intent(in   ) :: variable_hyperviscosity
-  real(kind=real_kind), dimension(np,np              ), intent(in   ) :: spheremp
-  real(kind=real_kind), value                         , intent(in   ) :: rrearth
-  real(kind=real_kind)                                                :: lapl
+  real(kind=real_kind), dimension(np,np,2,2          ), intent(in) :: dinv
+  real(kind=real_kind), dimension(np,np              ), intent(in) :: deriv_dvv
+  real(kind=real_kind), dimension(np,np              ), intent(in) :: variable_hyperviscosity
+  real(kind=real_kind), dimension(np,np              ), intent(in) :: spheremp
+  real(kind=real_kind)                                             :: lapl
   integer :: l
   real(kind=real_kind) :: dsdx00 , dsdy00, tmp1, tmp2
   real(kind=real_kind), dimension(2) :: ds
-  ds = gradient_sphere(i,j,ie,iz,s,dinv,variable_hyperviscosity,deriv_dvv,nets,nete,rrearth)
-  lapl = divergence_sphere_wk(i,j,ie,iz,ds,s,dinv,spheremp,deriv_dvv,nets,nete,rrearth)
+  ds = gradient_sphere(i,j,ie,iz,s,dinv,variable_hyperviscosity,deriv_dvv,nets,nete)
+  lapl = divergence_sphere_wk(i,j,ie,iz,ds,s,dinv,spheremp,deriv_dvv,nets,nete)
 end function laplace_sphere_wk
 
 
 
-attributes(device) function gradient_sphere(i,j,ie,iz,s,dinv,variable_hyperviscosity,deriv_dvv,nets,nete,rrearth) result(ds)
+attributes(device) function gradient_sphere(i,j,ie,iz,s,dinv,variable_hyperviscosity,deriv_dvv,nets,nete) result(ds)
   implicit none
   integer,                                              intent(in) :: nets, nete, i, j, ie, iz
   real(kind=real_kind), dimension(np,np,2,nlev)       , intent(in) :: s
   real(kind=real_kind), dimension(np,np,2,2          ), intent(in) :: dinv
   real(kind=real_kind), dimension(np,np              ), intent(in) :: deriv_dvv
   real(kind=real_kind), dimension(np,np              ), intent(in) :: variable_hyperviscosity
-  real(kind=real_kind), value                         , intent(in) :: rrearth
   real(kind=real_kind), dimension(2)                               :: ds
   integer :: l
   real(kind=real_kind) :: dsdx00 , dsdy00, tmp1, tmp2
@@ -1467,13 +1428,13 @@ attributes(device) function gradient_sphere(i,j,ie,iz,s,dinv,variable_hypervisco
     dsdx00 = dsdx00 + deriv_dvv(l,i)*s(l,j,1,iz)
     dsdy00 = dsdy00 + deriv_dvv(l,j)*s(i,l,1,iz)
   enddo
-  ds(1) = ( dinv(i,j,1,1)*dsdx00 + dinv(i,j,2,1)*dsdy00 ) * rrearth * variable_hyperviscosity(i,j)
-  ds(2) = ( dinv(i,j,1,2)*dsdx00 + dinv(i,j,2,2)*dsdy00 ) * rrearth * variable_hyperviscosity(i,j)
+  ds(1) = ( dinv(i,j,1,1)*dsdx00 + dinv(i,j,2,1)*dsdy00 ) * rrearth_d * variable_hyperviscosity(i,j)
+  ds(2) = ( dinv(i,j,1,2)*dsdx00 + dinv(i,j,2,2)*dsdy00 ) * rrearth_d * variable_hyperviscosity(i,j)
 end function gradient_sphere
 
 
 
-attributes(device) function divergence_sphere_wk(i,j,ie,iz,tmp,s,dinv,spheremp,deriv_dvv,nets,nete,rrearth) result(lapl)
+attributes(device) function divergence_sphere_wk(i,j,ie,iz,tmp,s,dinv,spheremp,deriv_dvv,nets,nete) result(lapl)
   implicit none
   integer,                                              intent(in   ) :: nets, nete, i, j, ie, iz
   real(kind=real_kind), dimension(2),                   intent(in   ) :: tmp
@@ -1481,7 +1442,6 @@ attributes(device) function divergence_sphere_wk(i,j,ie,iz,tmp,s,dinv,spheremp,d
   real(kind=real_kind), dimension(np,np,2,2          ), intent(in   ) :: dinv
   real(kind=real_kind), dimension(np,np              ), intent(in   ) :: deriv_dvv
   real(kind=real_kind), dimension(np,np              ), intent(in   ) :: spheremp
-  real(kind=real_kind), value                         , intent(in)    :: rrearth
   real(kind=real_kind)                                                :: lapl
   integer :: l
   s(i,j,1,iz) = ( dinv(i,j,1,1)*tmp(1) + dinv(i,j,1,2)*tmp(2) )
@@ -1489,7 +1449,7 @@ attributes(device) function divergence_sphere_wk(i,j,ie,iz,tmp,s,dinv,spheremp,d
   call syncthreads()
   lapl = 0.0d0
   do l = 1 , np
-    lapl = lapl - (spheremp(l,j)*s(l,j,1,iz)*deriv_dvv(i,l)+spheremp(i,l)*s(i,l,2,iz)*deriv_dvv(j,l)) * rrearth
+    lapl = lapl - (spheremp(l,j)*s(l,j,1,iz)*deriv_dvv(i,l)+spheremp(i,l)*s(i,l,2,iz)*deriv_dvv(j,l)) * rrearth_d
   enddo
 end function divergence_sphere_wk
 

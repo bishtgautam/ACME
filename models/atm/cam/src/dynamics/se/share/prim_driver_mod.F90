@@ -495,6 +495,7 @@ contains
     deallocate(TailPartition)
     deallocate(HeadPartition)
 
+
     n_domains = min(Nthreads,nelemd)
 #if defined(ELEMENT_OPENMP) || defined(NESTED_OPENMP)
     call omp_set_num_threads(NThreads)
@@ -584,7 +585,6 @@ contains
 
      integer, intent(in)                     :: nets  ! starting thread element number (private)
     integer, intent(in)                     :: nete  ! ending thread element number   (private)
-
 
     ! ==================================
     ! Local variables
@@ -1407,7 +1407,6 @@ contains
 #if USE_CUDA_FORTRAN
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
     call copy_qdp_h2d( elem , n0_qdp )
-    call copy_qdp_h2d( elem , np1_qdp )
 #endif
 
     ! loop over rsplit vertically lagrangian timesteps
@@ -1431,7 +1430,6 @@ contains
 
 #if USE_CUDA_FORTRAN
     call TimeLevel_Qdp( tl, qsplit, n0_qdp, np1_qdp) 
-    call copy_qdp_d2h( elem , n0_qdp )
     call copy_qdp_d2h( elem , np1_qdp )
 #endif
 
