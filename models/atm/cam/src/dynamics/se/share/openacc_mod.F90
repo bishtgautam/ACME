@@ -114,7 +114,7 @@ contains
   integer              , intent(in   )         :: rhs_multiplier
   ! local
   real(kind=real_kind), dimension(np,np                       ) :: divdp, dpdiss
-  real(kind=real_kind), dimension(np,np,2                     ) :: gradQ
+  real(kind=real_kind), dimension(np,np,2,nlev                ) :: gradQ
   real(kind=real_kind), dimension(np,np,2,nlev      ,nets:nete) :: Vstar
   real(kind=real_kind), dimension(np,np  ,nlev,qsize,nets:nete) :: Qtens
   real(kind=real_kind), dimension(np,np  ,nlev                ) :: dp_star
@@ -226,11 +226,9 @@ contains
           !$omp parallel do private(k, q, dp0, dpdiss)
 #endif
           do k = 1 , nlev    
-            dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-                  ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
+            dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
 #if 0
-            dpdiss(:,:) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-                          ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%derived%psdiss_ave(:,:)
+            dpdiss(:,:) = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*elem(ie)%derived%psdiss_ave(:,:)
 #else
             dpdiss(:,:) = elem(ie)%derived%dpdiss_ave(:,:,k)
 #endif
@@ -241,19 +239,16 @@ contains
           enddo
         enddo
       endif
-      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , &
-           nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
+      call biharmonic_wk_scalar_minmax( elem , qtens_biharmonic , deriv , edgeAdvQ3 , hybrid , nets , nete , qmin(:,:,nets:nete) , qmax(:,:,nets:nete) )
       do ie = nets , nete
 #if (defined ELEMENT_OPENMP)
         !$omp parallel do private(k, q, dp0)
 #endif
         do k = 1 , nlev    !  Loop inversion (AAM)
-          dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + &
-                ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
+          dp0 = ( hvcoord%hyai(k+1) - hvcoord%hyai(k) )*hvcoord%ps0 + ( hvcoord%hybi(k+1) - hvcoord%hybi(k) )*hvcoord%ps0
           do q = 1 , qsize
             ! note: biharmonic_wk() output has mass matrix already applied. Un-apply since we apply again below:
-            qtens_biharmonic(:,:,k,q,ie) = &
-                     -rhs_viss*dt*nu_q*dp0*Qtens_biharmonic(:,:,k,q,ie) / elem(ie)%spheremp(:,:)
+            qtens_biharmonic(:,:,k,q,ie) = -rhs_viss*dt*nu_q*dp0*Qtens_biharmonic(:,:,k,q,ie) / elem(ie)%spheremp(:,:)
           enddo
         enddo
       enddo
@@ -275,22 +270,34 @@ contains
       Vstar(:,:,2,k,ie) = elem(ie)%derived%vn0(:,:,2,k) / dp(:,:,k,ie)
     enddo
   enddo
-  !$acc data present_or_create( nets,nete,elem,rhs_multiplier,dt,qsize,gradq,n0_qdp,dp_star,deriv,qtens,rhs_viss,qtens_biharmonic,nu_p,dpdiss,nu_q,qmin,qmax,np1_qdp,hvcoord )
-  !$acc update          device( nets,nete,elem,rhs_multiplier,dt,qsize,gradq,n0_qdp,dp_star,deriv,qtens,rhs_viss,qtens_biharmonic,nu_p,dpdiss,nu_q,qmin,qmax,np1_qdp,hvcoord )
+
+
+
+  !$acc data present_or_create( nets,nete,qsize,vstar,n0_qdp,elem,gradq,deriv,dp_star,dt,qtens,hvcoord )
+  !$acc update          device( nets,nete,qsize,vstar,n0_qdp,elem,gradq,deriv,dp_star,dt,qtens,hvcoord )
   !$acc wait
-  !$acc parallel loop gang collapse(2)
-  do ie = nets , nete   ! advance Qdp
+
+
+!VERSION 1
+#if 0
+! !$acc parallel loop gang
+  !$acc kernels
+  do ie = nets , nete    ! advance Qdp
     do q = 1 , qsize
-      do k = 1 , nlev  !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
-        do j = 1 , np  !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
-          do i = 1 , np  !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
-            gradQ(i,j,1) = Vstar(i,j,1,k,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
-            gradQ(i,j,2) = Vstar(i,j,2,k,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+      !$acc loop collapse(3) vector
+      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+        do j = 1 , np
+          do i = 1 , np
+            gradQ(i,j,1,k) = Vstar(i,j,1,k,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+            gradQ(i,j,2,k) = Vstar(i,j,2,k,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
           enddo
         enddo
-        dp_star(:,:,k) = divergence_sphere( gradQ , deriv , elem(ie) )
-        do j = 1 , np  !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
-          do i = 1 , np  !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+      enddo
+      !$acc loop collapse(3) vector
+      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+        do j = 1 , np
+          do i = 1 , np 
+            dp_star(i,j,k) = divergence_sphere( gradQ(:,:,:,k) , deriv , elem(ie) , i , j )
             Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * dp_star(i,j,k)
 !           ! optionally add in hyperviscosity computed above:
 !           if ( rhs_viss /= 0 ) Qtens(:,:,k,q,ie) = Qtens(:,:,k,q,ie) + Qtens_biharmonic(:,:,k,q,ie)
@@ -299,9 +306,42 @@ contains
       enddo
     enddo
   enddo
+  !$acc end kernels
+! !$acc end parallel loop
+#endif
+
+
+!VERSION 2
+#if 1
+  !$acc parallel loop gang
+! !$acc kernels 
+  do ie = nets , nete    ! advance Qdp
+    do q = 1 , qsize
+      !$acc loop collapse(3) vector
+      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+        do j = 1 , np
+          do i = 1 , np 
+            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_2( Vstar(:,:,:,k,ie) , elem(ie)%state%Qdp(:,:,k,q,n0_qdp) , deriv , elem(ie) , i , j )
+!           ! optionally add in hyperviscosity computed above:
+!           if ( rhs_viss /= 0 ) Qtens(:,:,k,q,ie) = Qtens(:,:,k,q,ie) + Qtens_biharmonic(:,:,k,q,ie)
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
+! !$acc end kernels
   !$acc end parallel loop
-  !$acc update host( nets,nete,elem,rhs_multiplier,dt,qsize,gradq,n0_qdp,dp_star,deriv,qtens,rhs_viss,qtens_biharmonic,nu_p,dpdiss,nu_q,qmin,qmax,np1_qdp,hvcoord )
+#endif
+
+
+
+  !$acc wait
+  !$acc update host( qtens )
+  !$acc wait
   !$acc end data
+
+
+
   do ie = nets , nete
     do q = 1 , qsize
       if ( limiter_option == 8 ) then
@@ -315,8 +355,7 @@ contains
           endif
         enddo
         ! apply limiter to Q = Qtens / dp_star 
-        call limiter_optim_iter_full( Qtens(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , &
-                                      qmax(:,q,ie) , dp_star(:,:,:) )
+        call limiter_optim_iter_full( Qtens(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:) )
       endif
       ! apply mass matrix, overwrite np1 with solution:
       ! dont do this earlier, since we allow np1_qdp == n0_qdp 
@@ -324,6 +363,10 @@ contains
       do k = 1 , nlev
         elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%spheremp(:,:) * Qtens(:,:,k,q,ie)
       enddo
+    enddo
+  enddo
+  do ie = nets , nete
+    do q = 1 , qsize
       if ( limiter_option == 4 ) then
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
         ! sign-preserving limiter, applied after mass matrix
@@ -331,6 +374,8 @@ contains
         call limiter2d_zero( elem(ie)%state%Qdp(:,:,:,q,np1_qdp) , hvcoord ) 
       endif
     enddo
+  enddo
+  do ie = nets , nete
     if ( DSSopt == DSSno_var ) then
       call edgeVpack(edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
     else
@@ -392,41 +437,54 @@ contains
 
 
 
-  function divergence_sphere(v,deriv,elem) result(div)
+  function divergence_sphere(v,deriv,elem,i,j) result(div)
 !   input:  v = velocity in lat-lon coordinates
 !   ouput:  div(v)  spherical divergence of v
     !$acc routine vector
-    real(kind=real_kind), intent(in) :: v(np,np,2)  ! in lat-lon coordinates
-    type (derivative_t)              :: deriv
-    type (element_t)                 :: elem
-    real(kind=real_kind) :: div(np,np)
+    real(kind=real_kind), intent(in)        :: v(np,np,2)  ! in lat-lon coordinates
+    integer             , intent(in), value :: i,j
+    type (derivative_t)                     :: deriv
+    type (element_t)                        :: elem
+    real(kind=real_kind)                    :: div
     ! Local
     integer :: i, j, s
     real(kind=real_kind) ::  dudx00
     real(kind=real_kind) ::  dvdy00
-    real(kind=real_kind) ::  gv(np,np,2),vvtemp(np,np)
-    ! convert to contra variant form and multiply by g
-    !$acc loop collapse(2)
-    do j=1,np
-      do i=1,np
-        gv(i,j,1)=elem%metdet(i,j)*(elem%Dinv(1,1,i,j)*v(i,j,1) + elem%Dinv(1,2,i,j)*v(i,j,2))
-        gv(i,j,2)=elem%metdet(i,j)*(elem%Dinv(2,1,i,j)*v(i,j,1) + elem%Dinv(2,2,i,j)*v(i,j,2))
-      enddo
+    dudx00=0.0d0
+    dvdy00=0.0d0
+!!!!!$acc loop seq
+    do s=1,np
+      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(elem%Dinv(1,1,s,j)*v(s,j,1) + elem%Dinv(1,2,s,j)*v(s,j,2)) )
+      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(elem%Dinv(2,1,i,s)*v(i,s,1) + elem%Dinv(2,2,i,s)*v(i,s,2)) )
     enddo
-    ! compute d/dx and d/dy         
-    !$acc loop collapse(2)
-    do j=1,np
-      do i=1,np
-        dudx00=0.0d0
-        dvdy00=0.0d0
-        do s=1,np
-          dudx00 = dudx00 + deriv%Dvv(s,i)*gv(s,j,1)
-          dvdy00 = dvdy00 + deriv%Dvv(s,j)*gv(i,s,2)
-        enddo
-        div(i,j)=(dudx00+dvdy00)*(elem%rmetdet(i,j)*rrearth)
-      enddo
-    enddo
+    div=(dudx00+dvdy00)*(elem%rmetdet(i,j)*rrearth)
   end function divergence_sphere
+
+
+
+  function divergence_sphere_2(vstar,qdp,deriv,elem,i,j) result(div)
+!   input:  v = velocity in lat-lon coordinates
+!   ouput:  div(v)  spherical divergence of v
+    !$acc routine vector
+    real(kind=real_kind), intent(in)        :: vstar(np,np,2)  ! in lat-lon coordinates
+    real(kind=real_kind), intent(in)        :: qdp(np,np)  ! in lat-lon coordinates
+    integer             , intent(in), value :: i,j
+    type (derivative_t)                     :: deriv
+    type (element_t)                        :: elem
+    real(kind=real_kind)                    :: div
+    ! Local
+    integer :: i, j, s
+    real(kind=real_kind) ::  dudx00
+    real(kind=real_kind) ::  dvdy00
+    dudx00=0.0d0
+    dvdy00=0.0d0
+!!!!!$acc loop seq
+    do s=1,np
+      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(elem%Dinv(1,1,s,j)*vstar(s,j,1) + elem%Dinv(1,2,s,j)*vstar(s,j,2))*qdp(s,j) )
+      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(elem%Dinv(2,1,i,s)*vstar(i,s,1) + elem%Dinv(2,2,i,s)*vstar(i,s,2))*qdp(i,s) )
+    enddo
+    div=(dudx00+dvdy00)*(elem%rmetdet(i,j)*rrearth)
+  end function divergence_sphere_2
 
 
 
@@ -440,16 +498,17 @@ contains
   ! ps is only used when advecting Q instead of Qdp
   ! so ps should be at one timelevel behind Q
   implicit none
+  !$acc routine vector
   real (kind=real_kind), intent(inout) :: Q(np,np,nlev)
   type (hvcoord_t)     , intent(in   ) :: hvcoord
-
   ! local
   real (kind=real_kind) :: dp(np,np)
   real (kind=real_kind) :: mass,mass_new,ml
   integer i,j,k
-
+  !$acc loop private(mass,mass_new)
   do k = nlev , 1 , -1
     mass = 0
+    !$acc loop reduction(+:mass) collapse(2)
     do j = 1 , np
       do i = 1 , np
         !ml = Q(i,j,k)*dp(i,j)*spheremp(i,j)  ! see above
@@ -462,6 +521,7 @@ contains
     ! then increase negative values as much as possible
     if ( mass < 0 ) Q(:,:,k) = -Q(:,:,k) 
     mass_new = 0
+    !$acc loop reduction(+:mass_new) collapse(2)
     do j = 1 , np
       do i = 1 , np
         if ( Q(i,j,k) < 0 ) then

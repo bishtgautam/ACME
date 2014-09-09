@@ -880,6 +880,9 @@ contains
 
   subroutine Prim_Advec_Init()
     use dimensions_mod, only : nlev, qsize, nelemd
+#if USE_OPENACC
+    use openacc_mod, only: openacc_init
+#endif
 
     ! Shared buffer pointers.
     ! Using "=> null()" in a subroutine is usually bad, because it makes
@@ -887,6 +890,9 @@ contains
     ! threads. But in this case we want shared pointers.
     real(kind=real_kind), pointer :: buf_ptr(:) => null()
     real(kind=real_kind), pointer :: receive_ptr(:) => null()
+#if USE_OPENACC
+    call openacc_init()
+#endif
 
     ! this might be called with qsize=0
     ! allocate largest one first
@@ -1303,6 +1309,9 @@ contains
 #if USE_CUDA_FORTRAN
   use cuda_mod, only: euler_step_cuda, copy_qdp_h2d
 #endif
+#if USE_OPENACC
+  use openacc_mod, only: euler_step_oacc
+#endif
   implicit none
   integer              , intent(in   )         :: np1_qdp, n0_qdp
   real (kind=real_kind), intent(in   )         :: dt
@@ -1334,6 +1343,10 @@ contains
 #if USE_CUDA_FORTRAN
 ! if (rhs_multiplier == 0) call copy_qdp_h2d(elem,n0_qdp)
   call euler_step_cuda( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
+  return
+#endif
+#if USE_OPENACC
+  call euler_step_oacc( np1_qdp , n0_qdp , dt , elem , hvcoord , hybrid , deriv , nets , nete , DSSopt , rhs_multiplier )
   return
 #endif
 ! call t_barrierf('sync_euler_step', hybrid%par%comm)
