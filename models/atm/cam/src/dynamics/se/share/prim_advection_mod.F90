@@ -880,9 +880,6 @@ contains
 
   subroutine Prim_Advec_Init()
     use dimensions_mod, only : nlev, qsize, nelemd
-#if USE_OPENACC
-    use openacc_mod, only: openacc_init
-#endif
 
     ! Shared buffer pointers.
     ! Using "=> null()" in a subroutine is usually bad, because it makes
@@ -890,9 +887,6 @@ contains
     ! threads. But in this case we want shared pointers.
     real(kind=real_kind), pointer :: buf_ptr(:) => null()
     real(kind=real_kind), pointer :: receive_ptr(:) => null()
-#if USE_OPENACC
-    call openacc_init()
-#endif
 
     ! this might be called with qsize=0
     ! allocate largest one first

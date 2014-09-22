@@ -39,7 +39,13 @@ module openacc_mod
   integer,parameter :: DSSdiv_vdp_ave = 3
   integer,parameter :: DSSno_var = -1
 
-  real(kind=real_kind), allocatable :: qmin(:,:,:), qmax(:,:,:)
+  real(kind=real_kind), allocatable :: qmin            (:,:,:)
+  real(kind=real_kind), allocatable :: qmax            (:,:,:)
+  real(kind=real_kind), allocatable :: Vstar           (:,:,:,:,:)
+  real(kind=real_kind), allocatable :: Qtens           (:,:,:,:,:)
+  real(kind=real_kind), allocatable :: dp              (:,:,:,:)
+  real(kind=real_kind), allocatable :: Qtens_biharmonic(:,:,:,:,:)
+  real(kind=real_kind), allocatable :: new_dinv        (:,:,:,:,:)
 
 
 
@@ -47,8 +53,9 @@ contains
 
 
 
-  subroutine openacc_init()
+  subroutine openacc_init(elem)
     use dimensions_mod, only : nlev, qsize, nelemd
+    type (element_t), intent(inout) :: elem(:)
 
     ! Shared buffer pointers.
     ! Using "=> null()" in a subroutine is usually bad, because it makes
@@ -56,6 +63,7 @@ contains
     ! threads. But in this case we want shared pointers.
     real(kind=real_kind), pointer :: buf_ptr(:) => null()
     real(kind=real_kind), pointer :: receive_ptr(:) => null()
+    integer :: i , j , ie
 
     ! this might be called with qsize=0
     ! allocate largest one first
@@ -74,9 +82,27 @@ contains
     nullify(buf_ptr)
     nullify(receive_ptr)
 
+    !$OMP BARRIER
+    !$OMP MASTER
+
     ! this static array is shared by all threads, so dimension for all threads (nelemd), not nets:nete:
-    allocate (qmin(nlev,qsize,nelemd))
-    allocate (qmax(nlev,qsize,nelemd))
+    allocate( qmin            (      nlev  ,qsize,nelemd) )
+    allocate( qmax            (      nlev  ,qsize,nelemd) )
+    allocate( Vstar           (np,np,nlev,2      ,nelemd) )
+    allocate( Qtens           (np,np,nlev  ,qsize,nelemd) )
+    allocate( dp              (np,np,nlev        ,nelemd) )
+    allocate( Qtens_biharmonic(np,np,nlev  ,qsize,nelemd) )
+    allocate( new_dinv        (np,np,2,2         ,nelemd) )
+    do ie = 1 , nelemd
+      do j = 1 , np
+        do i = 1 , np
+          new_dinv(i,j,:,:,ie) = elem(ie)%Dinv(:,:,i,j)
+        enddo
+      enddo
+    enddo
+
+    !$OMP END MASTER
+    !$OMP BARRIER
   end subroutine openacc_init
 
 
@@ -114,16 +140,14 @@ contains
   integer              , intent(in   )         :: rhs_multiplier
   ! local
   real(kind=real_kind), dimension(np,np                       ) :: divdp, dpdiss
-  real(kind=real_kind), dimension(np,np,2,nlev                ) :: gradQ
-  real(kind=real_kind), dimension(np,np,2,nlev      ,nets:nete) :: Vstar
-  real(kind=real_kind), dimension(np,np  ,nlev,qsize,nets:nete) :: Qtens
-  real(kind=real_kind), dimension(np,np  ,nlev                ) :: dp_star
-  real(kind=real_kind), dimension(np,np  ,nlev      ,nets:nete) :: dp
-  real(kind=real_kind), dimension(np,np  ,nlev,qsize,nets:nete) :: Qtens_biharmonic
   real(kind=real_kind), pointer, dimension(:,:,:)               :: DSSvar
+  real(kind=real_kind) :: vstar_tmp(np,np,nlev,2)
+  real(kind=real_kind) :: gradQ  (np,np,nlev,2)
+  real(kind=real_kind) :: dp_star(np,np,nlev  )
   real(kind=real_kind) :: dp0
   integer :: ie,q,i,j,k
   integer :: rhs_viss = 0
+  integer(kind=8) :: tc1,tc2,tr,tm
 ! call t_barrierf('sync_euler_step', hybrid%par%comm)
 !   call t_startf('euler_step')
 !pw++
@@ -266,71 +290,197 @@ contains
       ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
       ! but that's ok because rhs_multiplier=0 on the first stage:
       dp(:,:,k,ie) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(:,:,k) 
-      Vstar(:,:,1,k,ie) = elem(ie)%derived%vn0(:,:,1,k) / dp(:,:,k,ie)
-      Vstar(:,:,2,k,ie) = elem(ie)%derived%vn0(:,:,2,k) / dp(:,:,k,ie)
+      Vstar(:,:,k,1,ie) = elem(ie)%derived%vn0(:,:,1,k) / dp(:,:,k,ie)
+      Vstar(:,:,k,2,ie) = elem(ie)%derived%vn0(:,:,2,k) / dp(:,:,k,ie)
     enddo
   enddo
 
 
 
-  !$acc data present_or_create( nets,nete,qsize,vstar,n0_qdp,elem,gradq,deriv,dp_star,dt,qtens,hvcoord )
-  !$acc update          device( nets,nete,qsize,vstar,n0_qdp,elem,gradq,deriv,dp_star,dt,qtens,hvcoord )
+!CPU FLAG
+#if 0
+
+!VERSION 0
+#if 0
+  !$OMP BARRIER
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1)
+  do ie = nets , nete
+    do q = 1 , qsize
+      do k = 1 , nlev
+        gradQ(:,:,k,1) = Vstar(:,:,k,1,ie) * elem(ie)%state%Qdp(:,:,k,q,n0_qdp)
+        gradQ(:,:,k,2) = Vstar(:,:,k,2,ie) * elem(ie)%state%Qdp(:,:,k,q,n0_qdp)
+        dp_star(:,:,k) = divergence_sphere_orig( gradQ(:,:,k,:) , deriv , elem(ie) )
+        Qtens(:,:,k,q,ie) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp) - dt * dp_star(:,:,k)
+      enddo
+    enddo
+  enddo
+  !$OMP BARRIER
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr)
+  if (hybrid%masterthread) write(*,*) 'MYTIMER CPU V0: ', dble(tc2-tc1)/dble(tr)
+#endif
+
+!VERSION 1
+#if 0
+  !$OMP BARRIER
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1)
+  do ie = nets , nete
+    do q = 1 , qsize
+      !$acc loop collapse(3) vector
+      do k = 1 , nlev
+        do j = 1 , np
+          do i = 1 , np
+            gradQ(i,j,k,1) = Vstar(i,j,k,1,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+            gradQ(i,j,k,2) = Vstar(i,j,k,2,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+          enddo
+        enddo
+      enddo
+      !$acc loop collapse(3) vector
+      do k = 1 , nlev
+        do j = 1 , np
+          do i = 1 , np 
+            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere( gradQ(:,:,:,:) , deriv , elem(ie) , i , j , k )
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
+  !$OMP BARRIER
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr)
+  if (hybrid%masterthread) write(*,*) 'MYTIMER CPU V1: ', dble(tc2-tc1)/dble(tr)
+#endif
+
+!VERSION 2
+#if 0
+  !$OMP BARRIER
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1)
+  do ie = nets , nete
+    do q = 1 , qsize
+      do k = 1 , nlev
+        do j = 1 , np
+          do i = 1 , np 
+            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_2( Vstar(1,1,1,1,ie) , elem(ie)%state%Qdp(1,1,1,q,n0_qdp) , deriv , elem(ie) , i , j , k )
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
+  !$OMP BARRIER
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr)
+  if (hybrid%masterthread) write(*,*) 'MYTIMER CPU V2: ', dble(tc2-tc1)/dble(tr)
+#endif
+
+!VERSION 3
+#if 0
+  !$OMP BARRIER
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1)
+  do ie = nets , nete    ! advance Qdp
+    do q = 1 , qsize
+      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+        do j = 1 , np
+          do i = 1 , np 
+            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_3( vstar(1,1,1,1,ie) , elem(ie)%state%Qdp(1,1,1,q,n0_qdp) , deriv , elem(ie) , new_dinv(1,1,1,1,ie) , i , j , k )
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
+  !$OMP BARRIER
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr)
+  if (hybrid%masterthread) write(*,*) 'MYTIMER CPU V3: ', dble(tc2-tc1)/dble(tr)
+#endif
+
+
+
+#else
+
+
+!$OMP BARRIER
+if (hybrid%ithr == 0) then   !!!!!!!!!!!!!!!!!!!!!!!!! OMP MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+  !$acc data present_or_create( nets,nete,qsize,vstar,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv )
+  !$acc update          device( nets,nete,qsize,vstar,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv )
   !$acc wait
 
 
 !VERSION 1
 #if 0
-! !$acc parallel loop gang
-  !$acc kernels
-  do ie = nets , nete    ! advance Qdp
+  !$acc wait
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1) 
+  !$acc parallel loop gang private(gradQ) collapse(2)
+  do ie = 1 , nelemd
     do q = 1 , qsize
       !$acc loop collapse(3) vector
-      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+      do k = 1 , nlev
         do j = 1 , np
           do i = 1 , np
-            gradQ(i,j,1,k) = Vstar(i,j,1,k,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
-            gradQ(i,j,2,k) = Vstar(i,j,2,k,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+            gradQ(i,j,k,1) = Vstar(i,j,k,1,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
+            gradQ(i,j,k,2) = Vstar(i,j,k,2,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
           enddo
         enddo
       enddo
       !$acc loop collapse(3) vector
-      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+      do k = 1 , nlev
         do j = 1 , np
           do i = 1 , np 
-            dp_star(i,j,k) = divergence_sphere( gradQ(:,:,:,k) , deriv , elem(ie) , i , j )
-            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * dp_star(i,j,k)
-!           ! optionally add in hyperviscosity computed above:
-!           if ( rhs_viss /= 0 ) Qtens(:,:,k,q,ie) = Qtens(:,:,k,q,ie) + Qtens_biharmonic(:,:,k,q,ie)
+            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere( gradQ(:,:,:,:) , deriv , elem(ie) , i , j , k )
           enddo
         enddo
       enddo
     enddo
   enddo
-  !$acc end kernels
-! !$acc end parallel loop
+  !$acc end parallel loop
+  !$acc wait
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr) 
+  if (hybrid%masterthread) write(*,*) 'MYTIMER ACC V1: ', dble(tc2-tc1)/dble(tr)
 #endif
+
 
 
 !VERSION 2
 #if 1
-  !$acc parallel loop gang
-! !$acc kernels 
-  do ie = nets , nete    ! advance Qdp
+  !$acc wait
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1) 
+  !$acc parallel loop gang vector collapse(5)
+  do ie = 1 , nelemd
     do q = 1 , qsize
-      !$acc loop collapse(3) vector
-      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+      do k = 1 , nlev
         do j = 1 , np
           do i = 1 , np 
-            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_2( Vstar(:,:,:,k,ie) , elem(ie)%state%Qdp(:,:,k,q,n0_qdp) , deriv , elem(ie) , i , j )
-!           ! optionally add in hyperviscosity computed above:
-!           if ( rhs_viss /= 0 ) Qtens(:,:,k,q,ie) = Qtens(:,:,k,q,ie) + Qtens_biharmonic(:,:,k,q,ie)
+            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_2( Vstar(1,1,1,1,ie) , elem(ie)%state%Qdp(1,1,1,q,n0_qdp) , deriv , elem(ie) , i , j , k )
           enddo
         enddo
       enddo
     enddo
   enddo
-! !$acc end kernels
   !$acc end parallel loop
+  !$acc wait
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr) 
+  if (hybrid%masterthread) write(*,*) 'MYTIMER ACC V2: ', dble(tc2-tc1)/dble(tr)
+#endif 
+
+
+
+!VERSION 3
+#if 0
+  !$acc wait
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1) 
+  !$acc parallel loop gang collapse(5) vector_length(32)
+  do ie = 1 , nelemd    ! advance Qdp
+    do q = 1 , qsize
+      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+        do j = 1 , np
+          do i = 1 , np 
+            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_3( vstar(1,1,1,1,ie) , elem(ie)%state%Qdp(1,1,1,q,n0_qdp) , deriv , elem(ie) , new_dinv(1,1,1,1,ie) , i , j , k )
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
+  !$acc end parallel loop
+  !$acc wait
+  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr) 
+  if (hybrid%masterthread) write(*,*) 'MYTIMER ACC V3: ', dble(tc2-tc1)/dble(tr)
 #endif
 
 
@@ -339,6 +489,15 @@ contains
   !$acc update host( qtens )
   !$acc wait
   !$acc end data
+
+
+
+endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
+!$OMP BARRIER
+
+
+
+#endif
 
 
 
@@ -437,12 +596,11 @@ contains
 
 
 
-  function divergence_sphere(v,deriv,elem,i,j) result(div)
+  function divergence_sphere(v,deriv,elem,i,j,k) result(div)
 !   input:  v = velocity in lat-lon coordinates
 !   ouput:  div(v)  spherical divergence of v
-    !$acc routine vector
-    real(kind=real_kind), intent(in)        :: v(np,np,2)  ! in lat-lon coordinates
-    integer             , intent(in), value :: i,j
+    real(kind=real_kind), intent(in)        :: v(np,np,nlev,2)  ! in lat-lon coordinates
+    integer             , intent(in), value :: i,j,k
     type (derivative_t)                     :: deriv
     type (element_t)                        :: elem
     real(kind=real_kind)                    :: div
@@ -452,23 +610,22 @@ contains
     real(kind=real_kind) ::  dvdy00
     dudx00=0.0d0
     dvdy00=0.0d0
-!!!!!$acc loop seq
     do s=1,np
-      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(elem%Dinv(1,1,s,j)*v(s,j,1) + elem%Dinv(1,2,s,j)*v(s,j,2)) )
-      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(elem%Dinv(2,1,i,s)*v(i,s,1) + elem%Dinv(2,2,i,s)*v(i,s,2)) )
+      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(elem%Dinv(1,1,s,j)*v(s,j,k,1) + elem%Dinv(1,2,s,j)*v(s,j,k,2)) )
+      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(elem%Dinv(2,1,i,s)*v(i,s,k,1) + elem%Dinv(2,2,i,s)*v(i,s,k,2)) )
     enddo
     div=(dudx00+dvdy00)*(elem%rmetdet(i,j)*rrearth)
   end function divergence_sphere
 
 
 
-  function divergence_sphere_2(vstar,qdp,deriv,elem,i,j) result(div)
+  function divergence_sphere_2(vstar,qdp,deriv,elem,i,j,k) result(div)
 !   input:  v = velocity in lat-lon coordinates
 !   ouput:  div(v)  spherical divergence of v
-    !$acc routine vector
-    real(kind=real_kind), intent(in)        :: vstar(np,np,2)  ! in lat-lon coordinates
-    real(kind=real_kind), intent(in)        :: qdp(np,np)  ! in lat-lon coordinates
-    integer             , intent(in), value :: i,j
+    implicit none
+    real(kind=real_kind), intent(in)        :: vstar(np,np,nlev,2)
+    real(kind=real_kind), intent(in)        :: qdp(np,np,nlev)
+    integer             , intent(in), value :: i,j,k
     type (derivative_t)                     :: deriv
     type (element_t)                        :: elem
     real(kind=real_kind)                    :: div
@@ -478,13 +635,80 @@ contains
     real(kind=real_kind) ::  dvdy00
     dudx00=0.0d0
     dvdy00=0.0d0
-!!!!!$acc loop seq
     do s=1,np
-      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(elem%Dinv(1,1,s,j)*vstar(s,j,1) + elem%Dinv(1,2,s,j)*vstar(s,j,2))*qdp(s,j) )
-      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(elem%Dinv(2,1,i,s)*vstar(i,s,1) + elem%Dinv(2,2,i,s)*vstar(i,s,2))*qdp(i,s) )
+      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(elem%Dinv(1,1,s,j)*vstar(s,j,k,1) + elem%Dinv(1,2,s,j)*vstar(s,j,k,2))*qdp(s,j,k) )
+      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(elem%Dinv(2,1,i,s)*vstar(i,s,k,1) + elem%Dinv(2,2,i,s)*vstar(i,s,k,2))*qdp(i,s,k) )
     enddo
     div=(dudx00+dvdy00)*(elem%rmetdet(i,j)*rrearth)
   end function divergence_sphere_2
+
+
+
+  function divergence_sphere_3(vstar,qdp,deriv,elem,new_dinv,i,j,k) result(div)
+!   input:  v = velocity in lat-lon coordinates
+!   ouput:  div(v)  spherical divergence of v
+    real(kind=real_kind), intent(in)        :: vstar(np,np,nlev,2)  ! in lat-lon coordinates
+    real(kind=real_kind), intent(in)        :: qdp(np,np,nlev)
+    real(kind=real_kind), intent(in)        :: new_dinv(np,np,2,2)
+    integer             , intent(in), value :: i,j,k
+    type (derivative_t) , intent(in)        :: deriv
+    type (element_t)                        :: elem
+    real(kind=real_kind)                    :: div
+    ! Local
+    integer :: i, j, s
+    real(kind=real_kind) ::  dudx00
+    real(kind=real_kind) ::  dvdy00
+    dudx00=0.0d0
+    dvdy00=0.0d0
+    do s=1,np
+      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(new_dinv(s,j,1,1)*vstar(s,j,k,1) + new_dinv(s,j,1,2)*vstar(s,j,k,2))*qdp(s,j,k) )
+      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(new_dinv(i,s,2,1)*vstar(i,s,k,1) + new_dinv(i,s,2,2)*vstar(i,s,k,2))*qdp(i,s,k) )
+    enddo
+    div=(dudx00+dvdy00)*(elem%rmetdet(i,j)*rrearth)
+  end function divergence_sphere_3
+
+
+
+  function divergence_sphere_orig(v,deriv,elem) result(div)
+!   input:  v = velocity in lat-lon coordinates
+!   ouput:  div(v)  spherical divergence of v
+    real(kind=real_kind), intent(in) :: v(np,np,2)  ! in lat-lon coordinates
+    type (derivative_t)              :: deriv
+    type (element_t)                 :: elem
+    real(kind=real_kind) :: div(np,np)
+    ! Local
+    integer i
+    integer j
+    integer l
+    real(kind=real_kind) ::  dudx00
+    real(kind=real_kind) ::  dvdy00
+    real(kind=real_kind) ::  gv(np,np,2),vvtemp(np,np)
+    ! convert to contra variant form and multiply by g
+    do j=1,np
+       do i=1,np
+          gv(i,j,1)=elem%metdet(i,j)*(elem%Dinv(1,1,i,j)*v(i,j,1) + elem%Dinv(1,2,i,j)*v(i,j,2))
+          gv(i,j,2)=elem%metdet(i,j)*(elem%Dinv(2,1,i,j)*v(i,j,1) + elem%Dinv(2,2,i,j)*v(i,j,2))
+       enddo
+    enddo
+    ! compute d/dx and d/dy         
+    do j=1,np
+       do l=1,np
+          dudx00=0.0d0
+          dvdy00=0.0d0
+          do i=1,np
+             dudx00 = dudx00 + deriv%Dvv(i,l  )*gv(i,j  ,1)
+             dvdy00 = dvdy00 + deriv%Dvv(i,l  )*gv(j  ,i,2)
+          end do
+          div(l  ,j  ) = dudx00
+          vvtemp(j  ,l  ) = dvdy00
+       end do
+    end do
+    do j=1,np
+       do i=1,np
+          div(i,j)=(div(i,j)+vvtemp(i,j))*(elem%rmetdet(i,j)*rrearth)
+       end do
+    end do
+  end function divergence_sphere_orig
 
 
 

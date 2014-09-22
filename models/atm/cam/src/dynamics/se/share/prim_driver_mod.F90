@@ -571,6 +571,9 @@ contains
 #if USE_CUDA_FORTRAN
     use cuda_mod, only: cuda_mod_init
 #endif
+#if USE_OPENACC
+    use openacc_mod, only: openacc_init
+#endif
 
     type (element_t), intent(inout) :: elem(:)
 #if defined(_SPELT)
@@ -1066,6 +1069,9 @@ contains
 #if USE_CUDA_FORTRAN
     !Inside this routine, we enforce an OMP BARRIER and an OMP MASTER. It's left out of here because it's ugly
     call cuda_mod_init(elem,deriv(hybrid%ithr),hvcoord)
+#endif
+#if USE_OPENACC
+    call openacc_init(elem)
 #endif
     if (hybrid%masterthread) write(iulog,*) "initial state:"
     call prim_printstate(elem, tl, hybrid,hvcoord,nets,nete, fvm)
