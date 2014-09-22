@@ -145,9 +145,11 @@ contains
   real(kind=real_kind) :: gradQ  (np,np,nlev,2)
   real(kind=real_kind) :: dp_star(np,np,nlev  )
   real(kind=real_kind) :: dp0
+  real(kind=real_kind) :: dptmp
   integer :: ie,q,i,j,k
   integer :: rhs_viss = 0
   integer(kind=8) :: tc1,tc2,tr,tm
+  logical, save :: first_time = .true.
 ! call t_barrierf('sync_euler_step', hybrid%par%comm)
 !   call t_startf('euler_step')
 !pw++
@@ -279,169 +281,38 @@ contains
     endif
   endif  ! compute biharmonic mixing term and qmin/qmax
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !   2D Advection step
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  do ie = nets , nete
-    ! note: eta_dot_dpdn is actually dimension nlev+1, but nlev+1 data is
-    ! all zero so we only have to DSS 1:nlev
-    ! Compute velocity used to advance Qdp 
-    do k = 1 , nlev    !  Loop index added (AAM)
-      ! derived variable divdp_proj() (DSS'd version of divdp) will only be correct on 2nd and 3rd stage
-      ! but that's ok because rhs_multiplier=0 on the first stage:
-      dp(:,:,k,ie) = elem(ie)%derived%dp(:,:,k) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(:,:,k) 
-      Vstar(:,:,k,1,ie) = elem(ie)%derived%vn0(:,:,1,k) / dp(:,:,k,ie)
-      Vstar(:,:,k,2,ie) = elem(ie)%derived%vn0(:,:,2,k) / dp(:,:,k,ie)
-    enddo
-  enddo
-
-
-
-!CPU FLAG
-#if 0
-
-!VERSION 0
-#if 0
-  !$OMP BARRIER
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1)
-  do ie = nets , nete
-    do q = 1 , qsize
-      do k = 1 , nlev
-        gradQ(:,:,k,1) = Vstar(:,:,k,1,ie) * elem(ie)%state%Qdp(:,:,k,q,n0_qdp)
-        gradQ(:,:,k,2) = Vstar(:,:,k,2,ie) * elem(ie)%state%Qdp(:,:,k,q,n0_qdp)
-        dp_star(:,:,k) = divergence_sphere_orig( gradQ(:,:,k,:) , deriv , elem(ie) )
-        Qtens(:,:,k,q,ie) = elem(ie)%state%Qdp(:,:,k,q,n0_qdp) - dt * dp_star(:,:,k)
-      enddo
-    enddo
-  enddo
-  !$OMP BARRIER
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr)
-  if (hybrid%masterthread) write(*,*) 'MYTIMER CPU V0: ', dble(tc2-tc1)/dble(tr)
-#endif
-
-!VERSION 1
-#if 0
-  !$OMP BARRIER
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1)
-  do ie = nets , nete
-    do q = 1 , qsize
-      !$acc loop collapse(3) vector
-      do k = 1 , nlev
-        do j = 1 , np
-          do i = 1 , np
-            gradQ(i,j,k,1) = Vstar(i,j,k,1,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
-            gradQ(i,j,k,2) = Vstar(i,j,k,2,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
-          enddo
-        enddo
-      enddo
-      !$acc loop collapse(3) vector
-      do k = 1 , nlev
-        do j = 1 , np
-          do i = 1 , np 
-            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere( gradQ(:,:,:,:) , deriv , elem(ie) , i , j , k )
-          enddo
-        enddo
-      enddo
-    enddo
-  enddo
-  !$OMP BARRIER
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr)
-  if (hybrid%masterthread) write(*,*) 'MYTIMER CPU V1: ', dble(tc2-tc1)/dble(tr)
-#endif
-
-!VERSION 2
-#if 0
-  !$OMP BARRIER
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1)
-  do ie = nets , nete
-    do q = 1 , qsize
-      do k = 1 , nlev
-        do j = 1 , np
-          do i = 1 , np 
-            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_2( Vstar(1,1,1,1,ie) , elem(ie)%state%Qdp(1,1,1,q,n0_qdp) , deriv , elem(ie) , i , j , k )
-          enddo
-        enddo
-      enddo
-    enddo
-  enddo
-  !$OMP BARRIER
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr)
-  if (hybrid%masterthread) write(*,*) 'MYTIMER CPU V2: ', dble(tc2-tc1)/dble(tr)
-#endif
-
-!VERSION 3
-#if 0
-  !$OMP BARRIER
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1)
-  do ie = nets , nete    ! advance Qdp
-    do q = 1 , qsize
-      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
-        do j = 1 , np
-          do i = 1 , np 
-            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_3( vstar(1,1,1,1,ie) , elem(ie)%state%Qdp(1,1,1,q,n0_qdp) , deriv , elem(ie) , new_dinv(1,1,1,1,ie) , i , j , k )
-          enddo
-        enddo
-      enddo
-    enddo
-  enddo
-  !$OMP BARRIER
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr)
-  if (hybrid%masterthread) write(*,*) 'MYTIMER CPU V3: ', dble(tc2-tc1)/dble(tr)
-#endif
-
-
-
-#else
 
 
 !$OMP BARRIER
 if (hybrid%ithr == 0) then   !!!!!!!!!!!!!!!!!!!!!!!!! OMP MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-  !$acc data present_or_create( nets,nete,qsize,vstar,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv )
-  !$acc update          device( nets,nete,qsize,vstar,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv )
+  !$acc data present_or_create( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier )
+if (first_time) then
+  !$acc update          device( nelemd,qsize,n0_qdp,elem,deriv,dt,      hvcoord         ,rhs_multiplier )
+  first_time = .false.
+else
+  !$acc update          device(              n0_qdp,elem,      dt                       ,rhs_multiplier )
+endif
   !$acc wait
 
+  if (hybrid%masterthread) call system_clock(tc1)
 
-!VERSION 1
-#if 0
-  !$acc wait
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1) 
-  !$acc parallel loop gang private(gradQ) collapse(2)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !   2D Advection step
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !$acc parallel loop gang vector collapse(4) private(dptmp) async(1)
   do ie = 1 , nelemd
-    do q = 1 , qsize
-      !$acc loop collapse(3) vector
-      do k = 1 , nlev
-        do j = 1 , np
-          do i = 1 , np
-            gradQ(i,j,k,1) = Vstar(i,j,k,1,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
-            gradQ(i,j,k,2) = Vstar(i,j,k,2,ie) * elem(ie)%state%Qdp(i,j,k,q,n0_qdp)
-          enddo
-        enddo
-      enddo
-      !$acc loop collapse(3) vector
-      do k = 1 , nlev
-        do j = 1 , np
-          do i = 1 , np 
-            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere( gradQ(:,:,:,:) , deriv , elem(ie) , i , j , k )
-          enddo
+    do k = 1 , nlev
+      do j = 1 , np
+        do i = 1 , np
+          dptmp = elem(ie)%derived%dp(i,j,k) - rhs_multiplier * dt * elem(ie)%derived%divdp_proj(i,j,k) 
+          Vstar(i,j,k,1,ie) = elem(ie)%derived%vn0(i,j,1,k) / dptmp
+          Vstar(i,j,k,2,ie) = elem(ie)%derived%vn0(i,j,2,k) / dptmp
         enddo
       enddo
     enddo
   enddo
-  !$acc end parallel loop
-  !$acc wait
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr) 
-  if (hybrid%masterthread) write(*,*) 'MYTIMER ACC V1: ', dble(tc2-tc1)/dble(tr)
-#endif
 
-
-
-!VERSION 2
-#if 1
-  !$acc wait
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1) 
-  !$acc parallel loop gang vector collapse(5)
+  !$acc parallel loop gang vector collapse(5) async(1)
   do ie = 1 , nelemd
     do q = 1 , qsize
       do k = 1 , nlev
@@ -453,87 +324,67 @@ if (hybrid%ithr == 0) then   !!!!!!!!!!!!!!!!!!!!!!!!! OMP MASTER !!!!!!!!!!!!!!
       enddo
     enddo
   enddo
-  !$acc end parallel loop
-  !$acc wait
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr) 
-  if (hybrid%masterthread) write(*,*) 'MYTIMER ACC V2: ', dble(tc2-tc1)/dble(tr)
-#endif 
 
+! if ( limiter_option == 8 ) then
+!   do ie = 1 , nelemd
+!     do q = 1 , qsize
+!       do k = 1 , nlev  ! Loop index added (AAM)
+!         ! UN-DSS'ed dp at timelevel n0+1:  
+!         dp_star(:,:,k) = dp(:,:,k,ie) - dt * elem(ie)%derived%divdp(:,:,k)  
+!         if ( nu_p > 0 .and. rhs_viss /= 0 ) then
+!           ! add contribution from UN-DSS'ed PS dissipation
+!           dpdiss(:,:) = elem(ie)%derived%dpdiss_biharmonic(:,:,k)
+!           dp_star(:,:,k) = dp_star(:,:,k) - rhs_viss * dt * nu_q * dpdiss(:,:) / elem(ie)%spheremp(:,:)
+!         endif
+!       enddo
+!       ! apply limiter to Q = Qtens / dp_star 
+!       call limiter_optim_iter_full( Qtens(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:) )
+!     enddo
+!   enddo
+! endif
 
-
-!VERSION 3
-#if 0
-  !$acc wait
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc1) 
-  !$acc parallel loop gang collapse(5) vector_length(32)
-  do ie = 1 , nelemd    ! advance Qdp
+  ! apply mass matrix, overwrite np1 with solution:
+  ! dont do this earlier, since we allow np1_qdp == n0_qdp 
+  ! and we dont want to overwrite n0_qdp until we are done using it
+  !$acc parallel loop gang vector collapse(5) async(1)
+  do ie = 1 , nelemd
     do q = 1 , qsize
-      do k = 1 , nlev    !  dp_star used as temporary instead of divdp (AAM)  ! div( U dp Q), 
+      do k = 1 , nlev
         do j = 1 , np
-          do i = 1 , np 
-            Qtens(i,j,k,q,ie) = elem(ie)%state%Qdp(i,j,k,q,n0_qdp) - dt * divergence_sphere_3( vstar(1,1,1,1,ie) , elem(ie)%state%Qdp(1,1,1,q,n0_qdp) , deriv , elem(ie) , new_dinv(1,1,1,1,ie) , i , j , k )
+          do i = 1 , np
+            elem(ie)%state%Qdp(i,j,k,q,np1_qdp) = elem(ie)%spheremp(i,j) * Qtens(i,j,k,q,ie)
           enddo
         enddo
       enddo
     enddo
   enddo
-  !$acc end parallel loop
-  !$acc wait
-  if (hybrid%masterthread) CALL SYSTEM_CLOCK(tc2,tr) 
-  if (hybrid%masterthread) write(*,*) 'MYTIMER ACC V3: ', dble(tc2-tc1)/dble(tr)
-#endif
 
+  !$acc parallel loop gang vector collapse(3) async(1)
+  do ie = 1 , nelemd
+    do q = 1 , qsize
+      do k = nlev , 1 , -1
+        if ( limiter_option == 4 ) then
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+          ! sign-preserving limiter, applied after mass matrix
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+          call limiter2d_zero( elem(ie)%state%Qdp(:,:,k,q,np1_qdp) , hvcoord )
+        endif
+      enddo
+    enddo
+  enddo
 
+  !$acc wait(1)
+  if (hybrid%masterthread) call system_clock(tc2,tr)
+  if (hybrid%masterthread) write(*,*) 'MYTIMER: ', dble(tc2-tc1)/tr
 
-  !$acc wait
-  !$acc update host( qtens )
+  !$acc update host( elem )
   !$acc wait
   !$acc end data
-
-
-
 endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 !$OMP BARRIER
 
 
 
-#endif
-
-
-
-  do ie = nets , nete
-    do q = 1 , qsize
-      if ( limiter_option == 8 ) then
-        do k = 1 , nlev  ! Loop index added (AAM)
-          ! UN-DSS'ed dp at timelevel n0+1:  
-          dp_star(:,:,k) = dp(:,:,k,ie) - dt * elem(ie)%derived%divdp(:,:,k)  
-          if ( nu_p > 0 .and. rhs_viss /= 0 ) then
-            ! add contribution from UN-DSS'ed PS dissipation
-            dpdiss(:,:) = elem(ie)%derived%dpdiss_biharmonic(:,:,k)
-            dp_star(:,:,k) = dp_star(:,:,k) - rhs_viss * dt * nu_q * dpdiss(:,:) / elem(ie)%spheremp(:,:)
-          endif
-        enddo
-        ! apply limiter to Q = Qtens / dp_star 
-        call limiter_optim_iter_full( Qtens(:,:,:,q,ie) , elem(ie)%spheremp(:,:) , qmin(:,q,ie) , qmax(:,q,ie) , dp_star(:,:,:) )
-      endif
-      ! apply mass matrix, overwrite np1 with solution:
-      ! dont do this earlier, since we allow np1_qdp == n0_qdp 
-      ! and we dont want to overwrite n0_qdp until we are done using it
-      do k = 1 , nlev
-        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%spheremp(:,:) * Qtens(:,:,k,q,ie)
-      enddo
-    enddo
-  enddo
-  do ie = nets , nete
-    do q = 1 , qsize
-      if ( limiter_option == 4 ) then
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-        ! sign-preserving limiter, applied after mass matrix
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-        call limiter2d_zero( elem(ie)%state%Qdp(:,:,:,q,np1_qdp) , hvcoord ) 
-      endif
-    enddo
-  enddo
   do ie = nets , nete
     if ( DSSopt == DSSno_var ) then
       call edgeVpack(edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
@@ -596,29 +447,6 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
-  function divergence_sphere(v,deriv,elem,i,j,k) result(div)
-!   input:  v = velocity in lat-lon coordinates
-!   ouput:  div(v)  spherical divergence of v
-    real(kind=real_kind), intent(in)        :: v(np,np,nlev,2)  ! in lat-lon coordinates
-    integer             , intent(in), value :: i,j,k
-    type (derivative_t)                     :: deriv
-    type (element_t)                        :: elem
-    real(kind=real_kind)                    :: div
-    ! Local
-    integer :: i, j, s
-    real(kind=real_kind) ::  dudx00
-    real(kind=real_kind) ::  dvdy00
-    dudx00=0.0d0
-    dvdy00=0.0d0
-    do s=1,np
-      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(elem%Dinv(1,1,s,j)*v(s,j,k,1) + elem%Dinv(1,2,s,j)*v(s,j,k,2)) )
-      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(elem%Dinv(2,1,i,s)*v(i,s,k,1) + elem%Dinv(2,2,i,s)*v(i,s,k,2)) )
-    enddo
-    div=(dudx00+dvdy00)*(elem%rmetdet(i,j)*rrearth)
-  end function divergence_sphere
-
-
-
   function divergence_sphere_2(vstar,qdp,deriv,elem,i,j,k) result(div)
 !   input:  v = velocity in lat-lon coordinates
 !   ouput:  div(v)  spherical divergence of v
@@ -644,74 +472,6 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
-  function divergence_sphere_3(vstar,qdp,deriv,elem,new_dinv,i,j,k) result(div)
-!   input:  v = velocity in lat-lon coordinates
-!   ouput:  div(v)  spherical divergence of v
-    real(kind=real_kind), intent(in)        :: vstar(np,np,nlev,2)  ! in lat-lon coordinates
-    real(kind=real_kind), intent(in)        :: qdp(np,np,nlev)
-    real(kind=real_kind), intent(in)        :: new_dinv(np,np,2,2)
-    integer             , intent(in), value :: i,j,k
-    type (derivative_t) , intent(in)        :: deriv
-    type (element_t)                        :: elem
-    real(kind=real_kind)                    :: div
-    ! Local
-    integer :: i, j, s
-    real(kind=real_kind) ::  dudx00
-    real(kind=real_kind) ::  dvdy00
-    dudx00=0.0d0
-    dvdy00=0.0d0
-    do s=1,np
-      dudx00 = dudx00 + deriv%Dvv(s,i)*( elem%metdet(s,j)*(new_dinv(s,j,1,1)*vstar(s,j,k,1) + new_dinv(s,j,1,2)*vstar(s,j,k,2))*qdp(s,j,k) )
-      dvdy00 = dvdy00 + deriv%Dvv(s,j)*( elem%metdet(i,s)*(new_dinv(i,s,2,1)*vstar(i,s,k,1) + new_dinv(i,s,2,2)*vstar(i,s,k,2))*qdp(i,s,k) )
-    enddo
-    div=(dudx00+dvdy00)*(elem%rmetdet(i,j)*rrearth)
-  end function divergence_sphere_3
-
-
-
-  function divergence_sphere_orig(v,deriv,elem) result(div)
-!   input:  v = velocity in lat-lon coordinates
-!   ouput:  div(v)  spherical divergence of v
-    real(kind=real_kind), intent(in) :: v(np,np,2)  ! in lat-lon coordinates
-    type (derivative_t)              :: deriv
-    type (element_t)                 :: elem
-    real(kind=real_kind) :: div(np,np)
-    ! Local
-    integer i
-    integer j
-    integer l
-    real(kind=real_kind) ::  dudx00
-    real(kind=real_kind) ::  dvdy00
-    real(kind=real_kind) ::  gv(np,np,2),vvtemp(np,np)
-    ! convert to contra variant form and multiply by g
-    do j=1,np
-       do i=1,np
-          gv(i,j,1)=elem%metdet(i,j)*(elem%Dinv(1,1,i,j)*v(i,j,1) + elem%Dinv(1,2,i,j)*v(i,j,2))
-          gv(i,j,2)=elem%metdet(i,j)*(elem%Dinv(2,1,i,j)*v(i,j,1) + elem%Dinv(2,2,i,j)*v(i,j,2))
-       enddo
-    enddo
-    ! compute d/dx and d/dy         
-    do j=1,np
-       do l=1,np
-          dudx00=0.0d0
-          dvdy00=0.0d0
-          do i=1,np
-             dudx00 = dudx00 + deriv%Dvv(i,l  )*gv(i,j  ,1)
-             dvdy00 = dvdy00 + deriv%Dvv(i,l  )*gv(j  ,i,2)
-          end do
-          div(l  ,j  ) = dudx00
-          vvtemp(j  ,l  ) = dvdy00
-       end do
-    end do
-    do j=1,np
-       do i=1,np
-          div(i,j)=(div(i,j)+vvtemp(i,j))*(elem%rmetdet(i,j)*rrearth)
-       end do
-    end do
-  end function divergence_sphere_orig
-
-
-
   subroutine limiter2d_zero(Q,hvcoord)
   ! mass conserving zero limiter (2D only).  to be called just before DSS
   !
@@ -722,206 +482,255 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
   ! ps is only used when advecting Q instead of Qdp
   ! so ps should be at one timelevel behind Q
   implicit none
-  !$acc routine vector
+  real (kind=real_kind), intent(inout) :: Q(np,np)
+  type (hvcoord_t)     , intent(in   ) :: hvcoord
+  ! local
+  real (kind=real_kind) :: mass,mass_new
+  integer i,j
+  mass = 0
+  !$acc loop reduction(+:mass) collapse(2) seq
+  do j = 1 , np
+    do i = 1 , np
+      mass = mass + Q(i,j)
+    enddo
+  enddo
+
+  ! negative mass.  so reduce all postive values to zero 
+  ! then increase negative values as much as possible
+  if ( mass < 0 ) then
+    !$acc loop collapse(2) seq
+    do j = 1 , np
+      do i = 1 , np
+        Q(i,j) = -Q(i,j) 
+      enddo
+    enddo
+  endif
+  mass_new = 0
+  !$acc loop reduction(+:mass_new) collapse(2) seq
+  do j = 1 , np
+    do i = 1 , np
+      if ( Q(i,j) < 0 ) then
+        Q(i,j) = 0
+      else
+        mass_new = mass_new + Q(i,j)
+      endif
+    enddo
+  enddo
+
+  ! now scale the all positive values to restore mass
+  if ( mass_new > 0 ) then
+    !$acc loop collapse(2) seq
+    do j = 1 , np
+      do i = 1 , np
+        Q(i,j) = Q(i,j) * abs(mass) / mass_new
+      enddo
+    enddo
+  endif
+  if ( mass     < 0 ) then
+    !$acc loop collapse(2) seq
+    do j = 1 , np
+      do i = 1 , np
+        Q(i,j) = -Q(i,j) 
+      enddo
+    enddo
+  endif
+  end subroutine limiter2d_zero
+
+
+
+  subroutine limiter2d_zero_vertical(Q,hvcoord)
+  ! mass conserving zero limiter (2D only).  to be called just before DSS
+  !
+  ! this routine is called inside a DSS loop, and so Q had already
+  ! been multiplied by the mass matrix.  Thus dont include the mass
+  ! matrix when computing the mass = integral of Q over the element
+  !
+  ! ps is only used when advecting Q instead of Qdp
+  ! so ps should be at one timelevel behind Q
+  implicit none
   real (kind=real_kind), intent(inout) :: Q(np,np,nlev)
   type (hvcoord_t)     , intent(in   ) :: hvcoord
   ! local
   real (kind=real_kind) :: dp(np,np)
-  real (kind=real_kind) :: mass,mass_new,ml
+  real (kind=real_kind) :: mass,mass_new
   integer i,j,k
-  !$acc loop private(mass,mass_new)
+  mass = 0
+  !$acc loop vector reduction(+:mass) collapse(3)
   do k = nlev , 1 , -1
-    mass = 0
-    !$acc loop reduction(+:mass) collapse(2)
     do j = 1 , np
       do i = 1 , np
-        !ml = Q(i,j,k)*dp(i,j)*spheremp(i,j)  ! see above
-        ml = Q(i,j,k)
-        mass = mass + ml
+        mass = mass + Q(i,j,k)
       enddo
     enddo
+  enddo
 
-    ! negative mass.  so reduce all postive values to zero 
-    ! then increase negative values as much as possible
-    if ( mass < 0 ) Q(:,:,k) = -Q(:,:,k) 
-    mass_new = 0
-    !$acc loop reduction(+:mass_new) collapse(2)
+  ! negative mass.  so reduce all postive values to zero 
+  ! then increase negative values as much as possible
+  if ( mass < 0 ) then
+    !$acc loop vector collapse(3)
+    do k = nlev , 1 , -1
+      do j = 1 , np
+        do i = 1 , np
+          Q(i,j,k) = -Q(i,j,k) 
+        enddo
+      enddo
+    enddo
+  endif
+
+  mass_new = 0
+  !$acc loop vector reduction(+:mass_new) collapse(3)
+  do k = nlev , 1 , -1
     do j = 1 , np
       do i = 1 , np
         if ( Q(i,j,k) < 0 ) then
           Q(i,j,k) = 0
         else
-          ml = Q(i,j,k)
-          mass_new = mass_new + ml
+          mass_new = mass_new + Q(i,j,k)
         endif
       enddo
     enddo
-
-    ! now scale the all positive values to restore mass
-    if ( mass_new > 0 ) Q(:,:,k) = Q(:,:,k) * abs(mass) / mass_new
-    if ( mass     < 0 ) Q(:,:,k) = -Q(:,:,k) 
   enddo
-  end subroutine limiter2d_zero
 
-
-
-  subroutine limiter_optim_iter_full(ptens,sphweights,minp,maxp,dpmass)
-    !THIS IS A NEW VERSION OF LIM8, POTENTIALLY FASTER BECAUSE INCORPORATES KNOWLEDGE FROM
-    !PREVIOUS ITERATIONS
-    
-    !The idea here is the following: We need to find a grid field which is closest
-    !to the initial field (in terms of weighted sum), but satisfies the min/max constraints.
-    !So, first we find values which do not satisfy constraints and bring these values
-    !to a closest constraint. This way we introduce some mass change (addmass),
-    !so, we redistribute addmass in the way that l2 error is smallest. 
-    !This redistribution might violate constraints thus, we do a few iterations. 
-    use kinds         , only : real_kind
-    use dimensions_mod, only : np, np, nlev
-    real (kind=real_kind), dimension(np*np,nlev), intent(inout)            :: ptens
-    real (kind=real_kind), dimension(np*np     ), intent(in   )            :: sphweights
-    real (kind=real_kind), dimension(      nlev), intent(inout)            :: minp
-    real (kind=real_kind), dimension(      nlev), intent(inout)            :: maxp
-    real (kind=real_kind), dimension(np*np,nlev), intent(in   ), optional  :: dpmass
- 
-    real (kind=real_kind), dimension(np*np,nlev) :: weights
-    integer  k1, k, i, j, iter, i1, i2
-    integer :: whois_neg(np*np), whois_pos(np*np), neg_counter, pos_counter
-    real (kind=real_kind) :: addmass, weightssum, mass
-    real (kind=real_kind) :: x(np*np),c(np*np)
-    real (kind=real_kind) :: al_neg(np*np), al_pos(np*np), howmuch
-    real (kind=real_kind) :: tol_limiter = 1e-15
-    integer, parameter :: maxiter = 5
-
-    do k = 1 , nlev
-      weights(:,k) = sphweights(:) * dpmass(:,k)
-      ptens(:,k) = ptens(:,k) / dpmass(:,k)
-    enddo
-
-    do k = 1 , nlev
-      c = weights(:,k)
-      x = ptens(:,k)
-
-      mass = sum(c*x)
-
-      ! relax constraints to ensure limiter has a solution:
-      ! This is only needed if runnign with the SSP CFL>1 or 
-      ! due to roundoff errors
-      if( (mass / sum(c)) < minp(k) ) then
-        minp(k) = mass / sum(c)
-      endif
-      if( (mass / sum(c)) > maxp(k) ) then
-        maxp(k) = mass / sum(c)
-      endif
-
-      addmass = 0.0d0
-      pos_counter = 0;
-      neg_counter = 0;
-      
-      ! apply constraints, compute change in mass caused by constraints 
-      do k1 = 1 , np*np
-        if ( ( x(k1) >= maxp(k) ) ) then
-          addmass = addmass + ( x(k1) - maxp(k) ) * c(k1)
-          x(k1) = maxp(k)
-          whois_pos(k1) = -1
-        else
-          pos_counter = pos_counter+1;
-          whois_pos(pos_counter) = k1;
-        endif
-        if ( ( x(k1) <= minp(k) ) ) then
-          addmass = addmass - ( minp(k) - x(k1) ) * c(k1)
-          x(k1) = minp(k)
-          whois_neg(k1) = -1
-        else
-          neg_counter = neg_counter+1;
-          whois_neg(neg_counter) = k1;
-        endif
-      enddo
-      
-      ! iterate to find field that satifies constraints and is l2-norm closest to original 
-      weightssum = 0.0d0
-      if ( addmass > 0 ) then
-        do i2 = 1 , maxIter
-          weightssum = 0.0
-          do k1 = 1 , pos_counter
-            i1 = whois_pos(k1)
-            weightssum = weightssum + c(i1)
-            al_pos(i1) = maxp(k) - x(i1)
-          enddo
-          
-          if( ( pos_counter > 0 ) .and. ( addmass > tol_limiter * abs(mass) ) ) then
-            do k1 = 1 , pos_counter
-              i1 = whois_pos(k1)
-              howmuch = addmass / weightssum
-              if ( howmuch > al_pos(i1) ) then
-                howmuch = al_pos(i1)
-                whois_pos(k1) = -1
-              endif
-              addmass = addmass - howmuch * c(i1)
-              weightssum = weightssum - c(i1)
-              x(i1) = x(i1) + howmuch
-            enddo
-            !now sort whois_pos and get a new number for pos_counter
-            !here neg_counter and whois_neg serve as temp vars
-            neg_counter = pos_counter
-            whois_neg = whois_pos
-            whois_pos = -1
-            pos_counter = 0
-            do k1 = 1 , neg_counter
-              if ( whois_neg(k1) .ne. -1 ) then
-                pos_counter = pos_counter+1
-                whois_pos(pos_counter) = whois_neg(k1)
-              endif
-            enddo
-          else
-            exit
-          endif
+  ! now scale the all positive values to restore mass
+  if ( mass_new > 0 ) then
+    !$acc loop vector collapse(3)
+    do k = nlev , 1 , -1
+      do j = 1 , np
+        do i = 1 , np
+          Q(i,j,k) = Q(i,j,k) * abs(mass) / mass_new
         enddo
-      else
-         do i2 = 1 , maxIter
-           weightssum = 0.0
-           do k1 = 1 , neg_counter
-             i1 = whois_neg(k1)
-             weightssum = weightssum + c(i1)
-             al_neg(i1) = x(i1) - minp(k)
-           enddo
-           
-           if ( ( neg_counter > 0 ) .and. ( (-addmass) > tol_limiter * abs(mass) ) ) then
-             do k1 = 1 , neg_counter
-               i1 = whois_neg(k1)
-               howmuch = -addmass / weightssum
-               if ( howmuch > al_neg(i1) ) then
-                 howmuch = al_neg(i1)
-                 whois_neg(k1) = -1
-               endif
-               addmass = addmass + howmuch * c(i1)
-               weightssum = weightssum - c(i1)
-               x(i1) = x(i1) - howmuch
-             enddo
-             !now sort whois_pos and get a new number for pos_counter
-             !here pos_counter and whois_pos serve as temp vars
-             pos_counter = neg_counter
-             whois_pos = whois_neg
-             whois_neg = -1
-             neg_counter = 0
-             do k1 = 1 , pos_counter
-               if ( whois_pos(k1) .ne. -1 ) then
-                 neg_counter = neg_counter+1
-                 whois_neg(neg_counter) = whois_pos(k1)
-               endif
-             enddo
-           else
-             exit
-           endif
-         enddo
+      enddo
+    enddo
+  endif
+  if ( mass     < 0 ) then
+    !$acc loop vector collapse(3)
+    do k = nlev , 1 , -1
+      do j = 1 , np
+        do i = 1 , np
+          Q(i,j,k) = -Q(i,j,k) 
+        enddo
+      enddo
+    enddo
+  endif
+  end subroutine limiter2d_zero_vertical
+
+
+
+  subroutine edgeVpack(edge,v,vlyr,kptr,desc)
+    use dimensions_mod, only : np, max_corner_elem
+    use control_mod, only : north, south, east, west, neast, nwest, seast, swest
+    type (EdgeBuffer_t)                      :: edge
+    integer,              intent(in)   :: vlyr
+    real (kind=real_kind),intent(in)   :: v(np,np,vlyr)
+    integer,              intent(in)   :: kptr
+    type (EdgeDescriptor_t),intent(in) :: desc
+    ! Local variables
+    logical, parameter :: UseUnroll = .TRUE.
+    integer :: i,k,ir,ll
+    integer :: is,ie,in,iw
+    call t_startf('edge_pack')
+    is = desc%putmapP(south)
+    ie = desc%putmapP(east)
+    in = desc%putmapP(north)
+    iw = desc%putmapP(west)
+    if(MODULO(np,2) == 0 .and. UseUnroll) then 
+      do k=1,vlyr
+        do i=1,np,2
+          edge%buf(kptr+k,is+i  ) = v(i  ,1  ,k)
+          edge%buf(kptr+k,is+i+1) = v(i+1,1  ,k)
+          edge%buf(kptr+k,ie+i  ) = v(np ,i  ,k)
+          edge%buf(kptr+k,ie+i+1) = v(np ,i+1,k)
+          edge%buf(kptr+k,in+i  ) = v(i  ,np ,k)
+          edge%buf(kptr+k,in+i+1) = v(i+1,np ,k)
+          edge%buf(kptr+k,iw+i  ) = v(1  ,i  ,k)
+          edge%buf(kptr+k,iw+i+1) = v(1  ,i+1,k)
+        enddo
+      enddo
+    else
+      do k=1,vlyr
+        do i=1,np
+          edge%buf(kptr+k,is+i)   = v(i  ,1 ,k)
+          edge%buf(kptr+k,ie+i)   = v(np ,i ,k)
+          edge%buf(kptr+k,in+i)   = v(i  ,np,k)
+          edge%buf(kptr+k,iw+i)   = v(1  ,i ,k)
+        enddo
+      enddo
+    endif
+    !  This is really kludgy way to setup the index reversals
+    !  But since it is so a rare event not real need to spend time optimizing
+    if(desc%reverse(south)) then
+      is = desc%putmapP(south)
+      do k=1,vlyr
+        do i=1,np
+          ir = np-i+1
+          edge%buf(kptr+k,is+ir)=v(i,1,k)
+        enddo
+      enddo
+    endif
+    if(desc%reverse(east)) then
+      ie = desc%putmapP(east)
+      do k=1,vlyr
+        do i=1,np
+          ir = np-i+1
+          edge%buf(kptr+k,ie+ir)=v(np,i,k)
+        enddo
+      enddo
+    endif
+    if(desc%reverse(north)) then
+      in = desc%putmapP(north)
+      do k=1,vlyr
+        do i=1,np
+          ir = np-i+1
+          edge%buf(kptr+k,in+ir)=v(i,np,k)
+        enddo
+      enddo
+    endif
+    if(desc%reverse(west)) then
+      iw = desc%putmapP(west)
+      do k=1,vlyr
+        do i=1,np
+          ir = np-i+1
+          edge%buf(kptr+k,iw+ir)=v(1,i,k)
+        enddo
+      enddo
+    endif
+    ! SWEST
+    do ll=swest,swest+max_corner_elem-1
+      if (desc%putmapP(ll) /= -1) then
+        do k=1,vlyr
+          edge%buf(kptr+k,desc%putmapP(ll)+1)=v(1  ,1 ,k)
+        enddo
       endif
-      
-      ptens(:,k) = x
     enddo
-    
-    do k = 1 , nlev
-      ptens(:,k) = ptens(:,k) * dpmass(:,k)
+    ! SEAST
+    do ll=swest+max_corner_elem,swest+2*max_corner_elem-1
+      if (desc%putmapP(ll) /= -1) then
+        do k=1,vlyr
+          edge%buf(kptr+k,desc%putmapP(ll)+1)=v(np ,1 ,k)
+        enddo
+      endif
     enddo
-  end subroutine limiter_optim_iter_full
+    ! NEAST
+    do ll=swest+3*max_corner_elem,swest+4*max_corner_elem-1
+      if (desc%putmapP(ll) /= -1) then
+        do k=1,vlyr
+          edge%buf(kptr+k,desc%putmapP(ll)+1)=v(np ,np,k)
+        enddo
+      endif
+    enddo
+    ! NWEST
+    do ll=swest+2*max_corner_elem,swest+3*max_corner_elem-1
+      if (desc%putmapP(ll) /= -1) then
+        do k=1,vlyr
+          edge%buf(kptr+k,desc%putmapP(ll)+1)=v(1  ,np,k)
+        enddo
+      endif
+    enddo
+    call t_stopf('edge_pack')
+  end subroutine edgeVpack
+
+
+
 
 
 
