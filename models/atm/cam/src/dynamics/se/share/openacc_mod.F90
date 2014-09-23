@@ -2,8 +2,8 @@
 module openacc_mod
 #if USE_OPENACC
   use openacc
-  use kinds, only              : real_kind
-  use dimensions_mod, only     : nlev, nlevp, np, qsize, ntrac, nc, nep, nelemd
+  use kinds, only              : real_kind, int_kind, log_kind
+  use dimensions_mod, only     : nlev, nlevp, np, qsize, ntrac, nc, nep, nelemd, max_neigh_edges, max_corner_elem
   use physical_constants, only : rgas, Rwater_vapor, kappa, g, rearth, rrearth, cp
   use derivative_mod, only     : gradient, vorticity, gradient_wk, derivative_t, divergence, &
                                  gradient_sphere
@@ -18,7 +18,7 @@ module openacc_mod
   use control_mod, only        : integration, test_case, filter_freq_advection,  hypervis_order, &
         statefreq, moisture, TRACERADV_TOTAL_DIVERGENCE, TRACERADV_UGRADQ, &
         prescribed_wind, nu_q, nu_p, limiter_option, hypervis_subcycle_q, rsplit
-  use edge_mod, only           : EdgeBuffer_t, edgevpack, edgerotate, edgevunpack, initedgebuffer, edgevunpackmin, ghostbuffer3D_t
+  use edge_mod, only           : EdgeBuffer_t, edgerotate, edgevunpack, initedgebuffer, edgevunpackmin, ghostbuffer3D_t
   use hybrid_mod, only         : hybrid_t
   use bndry_mod, only          : bndry_exchangev
   use viscosity_mod, only      : biharmonic_wk_scalar, biharmonic_wk_scalar_minmax, neighbor_minmax
@@ -38,14 +38,19 @@ module openacc_mod
   integer,parameter :: DSSomega = 2
   integer,parameter :: DSSdiv_vdp_ave = 3
   integer,parameter :: DSSno_var = -1
+  integer           :: nbuf
 
-  real(kind=real_kind), allocatable :: qmin            (:,:,:)
-  real(kind=real_kind), allocatable :: qmax            (:,:,:)
-  real(kind=real_kind), allocatable :: Vstar           (:,:,:,:,:)
-  real(kind=real_kind), allocatable :: Qtens           (:,:,:,:,:)
-  real(kind=real_kind), allocatable :: dp              (:,:,:,:)
-  real(kind=real_kind), allocatable :: Qtens_biharmonic(:,:,:,:,:)
-  real(kind=real_kind), allocatable :: new_dinv        (:,:,:,:,:)
+  real(kind=real_kind)   , allocatable :: qmin            (:,:,:)
+  real(kind=real_kind)   , allocatable :: qmax            (:,:,:)
+  real(kind=real_kind)   , allocatable :: Vstar           (:,:,:,:,:)
+  real(kind=real_kind)   , allocatable :: Qtens           (:,:,:,:,:)
+  real(kind=real_kind)   , allocatable :: dp              (:,:,:,:)
+  real(kind=real_kind)   , allocatable :: Qtens_biharmonic(:,:,:,:,:)
+  real(kind=real_kind)   , allocatable :: new_dinv        (:,:,:,:,:)
+  real(kind=real_kind)   , allocatable :: edgebuf         (:,:)
+  integer(kind=int_kind) , allocatable :: putmapP         (:,:)
+  integer(kind=int_kind) , allocatable :: getmapP         (:,:)
+  logical(kind=log_kind) , allocatable :: reverse         (:,:)
 
 
 
@@ -56,29 +61,16 @@ contains
   subroutine openacc_init(elem)
     use dimensions_mod, only : nlev, qsize, nelemd
     type (element_t), intent(inout) :: elem(:)
-
-    ! Shared buffer pointers.
-    ! Using "=> null()" in a subroutine is usually bad, because it makes
-    ! the variable have an implicit "save", and therefore shared between
-    ! threads. But in this case we want shared pointers.
     real(kind=real_kind), pointer :: buf_ptr(:) => null()
     real(kind=real_kind), pointer :: receive_ptr(:) => null()
     integer :: i , j , ie
 
-    ! this might be called with qsize=0
-    ! allocate largest one first
-    ! Currently this is never freed. If it was, only this first one should
-    ! be freed, as only it knows the true size of the buffer.
-    call initEdgeBuffer(edgeAdvQ3,max(nlev,qsize*nlev*3), buf_ptr, receive_ptr)  ! Qtens,Qmin, Qmax
+    call initEdgeBuffer( edgeAdvQ3  , max(nlev,qsize*nlev*3) , buf_ptr , receive_ptr )  ! Qtens , Qmin , Qmax
+    call initEdgeBuffer( edgeAdv1   , nlev                   , buf_ptr , receive_ptr )
+    call initEdgeBuffer( edgeAdv    , qsize*nlev             , buf_ptr , receive_ptr )
+    call initEdgeBuffer( edgeAdv_p1 , qsize*nlev + nlev      , buf_ptr , receive_ptr )
+    call initEdgeBuffer( edgeAdvQ2  , qsize*nlev*2           , buf_ptr , receive_ptr )  ! Qtens , Qmin , Qmax
 
-    ! remaining edge buffers can share %buf and %receive with edgeAdvQ3
-    ! (This is done through the optional 1D pointer arguments.)
-    call initEdgeBuffer(edgeAdv1,nlev,buf_ptr,receive_ptr)
-    call initEdgeBuffer(edgeAdv,qsize*nlev,buf_ptr,receive_ptr)
-    call initEdgeBuffer(edgeAdv_p1,qsize*nlev + nlev,buf_ptr,receive_ptr) 
-    call initEdgeBuffer(edgeAdvQ2,qsize*nlev*2,buf_ptr,receive_ptr)  ! Qtens,Qmin, Qmax
-
-    ! Don't actually want these saved, if this is ever called twice.
     nullify(buf_ptr)
     nullify(receive_ptr)
 
@@ -86,6 +78,11 @@ contains
     !$OMP MASTER
 
     ! this static array is shared by all threads, so dimension for all threads (nelemd), not nets:nete:
+    nbuf=4*(np+max_corner_elem)*nelemd
+    allocate( putmapP         (max_neigh_edges   ,nelemd) )
+    allocate( getmapP         (max_neigh_edges   ,nelemd) )
+    allocate( reverse         (max_neigh_edges   ,nelemd) )
+    allocate( edgebuf         (qsize*nlev,nbuf          ) )
     allocate( qmin            (      nlev  ,qsize,nelemd) )
     allocate( qmax            (      nlev  ,qsize,nelemd) )
     allocate( Vstar           (np,np,nlev,2      ,nelemd) )
@@ -99,6 +96,9 @@ contains
           new_dinv(i,j,:,:,ie) = elem(ie)%Dinv(:,:,i,j)
         enddo
       enddo
+      putmapP(:,ie) = elem(ie)%desc%putmapP(:)
+      getmapP(:,ie) = elem(ie)%desc%getmapP(:)
+      reverse(:,ie) = elem(ie)%desc%reverse(:)
     enddo
 
     !$OMP END MASTER
@@ -285,12 +285,12 @@ contains
 
 !$OMP BARRIER
 if (hybrid%ithr == 0) then   !!!!!!!!!!!!!!!!!!!!!!!!! OMP MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
-  !$acc data present_or_create( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier )
+  !$acc data present_or_create( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier,edgebuf,putmapP,getmapP )
 if (first_time) then
-  !$acc update          device( nelemd,qsize,n0_qdp,elem,deriv,dt,      hvcoord         ,rhs_multiplier )
+  !$acc update          device( nelemd,qsize,n0_qdp,elem,deriv,dt,      hvcoord         ,rhs_multiplier        ,putmapP,getmapP )
   first_time = .false.
 else
-  !$acc update          device(              n0_qdp,elem,      dt                       ,rhs_multiplier )
+  !$acc update          device(              n0_qdp,elem,      dt                       ,rhs_multiplier                         )
 endif
   !$acc wait
 
@@ -373,11 +373,13 @@ endif
     enddo
   enddo
 
+  call edgeVpack_qdp(elem,edgebuf,nlev*qsize,0,np1_qdp,putmapP,reverse)
+
   !$acc wait(1)
   if (hybrid%masterthread) call system_clock(tc2,tr)
   if (hybrid%masterthread) write(*,*) 'MYTIMER: ', dble(tc2-tc1)/tr
 
-  !$acc update host( elem )
+  !$acc update host( elem , edgebuf )
   !$acc wait
   !$acc end data
 endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -385,11 +387,13 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
-  do ie = nets , nete
-    if ( DSSopt == DSSno_var ) then
-      call edgeVpack(edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-    else
-      call edgeVpack(edgeAdv_p1 , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
+  if ( DSSopt == DSSno_var ) then
+    edgeAdv%buf(:,:) = edgebuf(:,:)
+  else
+    edgeAdv_p1%buf(:,:) = edgebuf(:,:)
+  endif
+  if ( DSSopt /= DSSno_var ) then
+    do ie = nets , nete
       if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
       if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
       if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
@@ -397,8 +401,8 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
         DSSvar(:,:,k) = elem(ie)%spheremp(:,:) * DSSvar(:,:,k) 
       enddo
       call edgeVpack( edgeAdv_p1 , DSSvar(:,:,1:nlev) , nlev , nlev*qsize , elem(ie)%desc )
-    endif
-  enddo
+    enddo
+  endif
 !pw++
   call t_startf('eus_bexchV')
 !pw--
@@ -616,118 +620,186 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
-  subroutine edgeVpack(edge,v,vlyr,kptr,desc)
+  subroutine edgeVpack_qdp(elem,edgebuf,nlyr,kptr,nt,putmapP,reverse)
+    use edge_mod, only: EdgeDescriptor_t, EdgeBuffer_t
     use dimensions_mod, only : np, max_corner_elem
     use control_mod, only : north, south, east, west, neast, nwest, seast, swest
-    type (EdgeBuffer_t)                      :: edge
-    integer,              intent(in)   :: vlyr
-    real (kind=real_kind),intent(in)   :: v(np,np,vlyr)
-    integer,              intent(in)   :: kptr
-    type (EdgeDescriptor_t),intent(in) :: desc
+    implicit none
+    type (element_t)       ,intent(in   ) :: elem(:)
+    real(kind=real_kind)   ,intent(  out) :: edgebuf(nlyr,nbuf)
+    integer                ,intent(in   ) :: nlyr
+    integer                ,intent(in   ) :: kptr
+    integer                ,intent(in   ) :: nt
+    integer(kind=int_kind) ,intent(in   ) :: putmapP(max_neigh_edges,nelemd)
+    logical(kind=log_kind) ,intent(in   ) :: reverse(max_neigh_edges,nelemd)
     ! Local variables
-    logical, parameter :: UseUnroll = .TRUE.
-    integer :: i,k,ir,ll
-    integer :: is,ie,in,iw
-    call t_startf('edge_pack')
-    is = desc%putmapP(south)
-    ie = desc%putmapP(east)
-    in = desc%putmapP(north)
-    iw = desc%putmapP(west)
-    if(MODULO(np,2) == 0 .and. UseUnroll) then 
-      do k=1,vlyr
-        do i=1,np,2
-          edge%buf(kptr+k,is+i  ) = v(i  ,1  ,k)
-          edge%buf(kptr+k,is+i+1) = v(i+1,1  ,k)
-          edge%buf(kptr+k,ie+i  ) = v(np ,i  ,k)
-          edge%buf(kptr+k,ie+i+1) = v(np ,i+1,k)
-          edge%buf(kptr+k,in+i  ) = v(i  ,np ,k)
-          edge%buf(kptr+k,in+i+1) = v(i+1,np ,k)
-          edge%buf(kptr+k,iw+i  ) = v(1  ,i  ,k)
-          edge%buf(kptr+k,iw+i+1) = v(1  ,i+1,k)
+    integer :: i,k,ir,ll,kq,ie,q
+    call t_startf('edge_pack_qdp_openacc')
+    !$acc parallel loop gang vector collapse(4) private(kq) async(1)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do i = 1 , np
+            kq = (q-1)*nlev+k
+            edgebuf(kptr+kq,putmapP(south,ie)+i) = elem(ie)%state%Qdp(i ,1 ,k,q,nt)
+            edgebuf(kptr+kq,putmapP(east ,ie)+i) = elem(ie)%state%Qdp(np,i ,k,q,nt)
+            edgebuf(kptr+kq,putmapP(north,ie)+i) = elem(ie)%state%Qdp(i ,np,k,q,nt)
+            edgebuf(kptr+kq,putmapP(west ,ie)+i) = elem(ie)%state%Qdp(1 ,i ,k,q,nt)
+          enddo
         enddo
       enddo
-    else
-      do k=1,vlyr
-        do i=1,np
-          edge%buf(kptr+k,is+i)   = v(i  ,1 ,k)
-          edge%buf(kptr+k,ie+i)   = v(np ,i ,k)
-          edge%buf(kptr+k,in+i)   = v(i  ,np,k)
-          edge%buf(kptr+k,iw+i)   = v(1  ,i ,k)
-        enddo
-      enddo
-    endif
-    !  This is really kludgy way to setup the index reversals
-    !  But since it is so a rare event not real need to spend time optimizing
-    if(desc%reverse(south)) then
-      is = desc%putmapP(south)
-      do k=1,vlyr
-        do i=1,np
-          ir = np-i+1
-          edge%buf(kptr+k,is+ir)=v(i,1,k)
-        enddo
-      enddo
-    endif
-    if(desc%reverse(east)) then
-      ie = desc%putmapP(east)
-      do k=1,vlyr
-        do i=1,np
-          ir = np-i+1
-          edge%buf(kptr+k,ie+ir)=v(np,i,k)
-        enddo
-      enddo
-    endif
-    if(desc%reverse(north)) then
-      in = desc%putmapP(north)
-      do k=1,vlyr
-        do i=1,np
-          ir = np-i+1
-          edge%buf(kptr+k,in+ir)=v(i,np,k)
-        enddo
-      enddo
-    endif
-    if(desc%reverse(west)) then
-      iw = desc%putmapP(west)
-      do k=1,vlyr
-        do i=1,np
-          ir = np-i+1
-          edge%buf(kptr+k,iw+ir)=v(1,i,k)
-        enddo
-      enddo
-    endif
-    ! SWEST
-    do ll=swest,swest+max_corner_elem-1
-      if (desc%putmapP(ll) /= -1) then
-        do k=1,vlyr
-          edge%buf(kptr+k,desc%putmapP(ll)+1)=v(1  ,1 ,k)
-        enddo
-      endif
     enddo
-    ! SEAST
-    do ll=swest+max_corner_elem,swest+2*max_corner_elem-1
-      if (desc%putmapP(ll) /= -1) then
-        do k=1,vlyr
-          edge%buf(kptr+k,desc%putmapP(ll)+1)=v(np ,1 ,k)
+    !$acc parallel loop gang vector collapse(4) private(kq,ir) async(1)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do i = 1 , np
+            kq = (q-1)*nlev+k
+            ir = np-i+1
+            if(reverse(south,ie)) edgebuf(kptr+kq,putmapP(south,ie)+ir) = elem(ie)%state%Qdp(i ,1 ,k,q,nt)
+            if(reverse(east ,ie)) edgebuf(kptr+kq,putmapP(east ,ie)+ir) = elem(ie)%state%Qdp(np,i ,k,q,nt)
+            if(reverse(north,ie)) edgebuf(kptr+kq,putmapP(north,ie)+ir) = elem(ie)%state%Qdp(i ,np,k,q,nt)
+            if(reverse(west ,ie)) edgebuf(kptr+kq,putmapP(west ,ie)+ir) = elem(ie)%state%Qdp(1 ,i ,k,q,nt)
+          enddo
         enddo
-      endif
+      enddo
     enddo
-    ! NEAST
-    do ll=swest+3*max_corner_elem,swest+4*max_corner_elem-1
-      if (desc%putmapP(ll) /= -1) then
-        do k=1,vlyr
-          edge%buf(kptr+k,desc%putmapP(ll)+1)=v(np ,np,k)
+    !$acc parallel loop gang vector collapse(4) private(kq,ll) async(1)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do i = 1 , max_corner_elem
+            kq = (q-1)*nlev+k
+            ll = swest+0*max_corner_elem+i-1    ! SWEST
+            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(1 ,1 ,k,q,nt)
+            ll = swest+1*max_corner_elem+i-1    ! SEAST
+            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(np,1 ,k,q,nt)
+            ll = swest+2*max_corner_elem+i-1    ! NWEST
+            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(1 ,np,k,q,nt)
+            ll = swest+3*max_corner_elem+i-1    ! NEAST
+            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(np,np,k,q,nt)
+          enddo
         enddo
-      endif
+      enddo
     enddo
-    ! NWEST
-    do ll=swest+2*max_corner_elem,swest+3*max_corner_elem-1
-      if (desc%putmapP(ll) /= -1) then
-        do k=1,vlyr
-          edge%buf(kptr+k,desc%putmapP(ll)+1)=v(1  ,np,k)
-        enddo
-      endif
-    enddo
-    call t_stopf('edge_pack')
-  end subroutine edgeVpack
+    call t_stopf('edge_pack_qdp_openacc')
+  end subroutine edgeVpack_qdp
+
+
+
+  subroutine bndry_exchangeV_openacc(hybrid,buffer)
+    use hybrid_mod, only : hybrid_t
+    use kinds, only : log_kind
+    use edge_mod, only : Edgebuffer_t
+    use schedule_mod, only : schedule_t, cycle_t, schedule
+    use dimensions_mod, only: nelemd, np
+!   use perf_mod, only: t_startf, t_stopf ! _EXTERNAL
+#ifdef _MPI
+    use parallel_mod, only : abortmp, status, srequest, rrequest, &
+         mpireal_t, mpiinteger_t, mpi_success
+#else
+    use parallel_mod, only : abortmp
+#endif
+    implicit none
+
+    type (hybrid_t)                   :: hybrid
+    type (EdgeBuffer_t)               :: buffer
+
+    type (Schedule_t),pointer                     :: pSchedule
+    type (Cycle_t),pointer                        :: pCycle
+    integer                                       :: dest,length,tag
+    integer                                       :: icycle,ierr
+    integer                                       :: iptr,source,nlyr
+    integer                                       :: nSendCycles,nRecvCycles
+    integer                                       :: errorcode,errorlen
+    character*(80) errorstring
+
+    integer        :: i
+    logical(kind=log_kind),parameter      :: Debug = .FALSE.
+
+
+!   call t_startf('bndry_exchange')
+#if (! defined ELEMENT_OPENMP)
+    !$OMP BARRIER
+#endif
+    if(hybrid%ithr == 0) then 
+
+#ifdef _MPI
+       ! Setup the pointer to proper Schedule
+#ifdef _PREDICT
+       pSchedule => Schedule(iam)
+#else
+       pSchedule => Schedule(1)
+#endif
+       nlyr = buffer%nlyr
+
+       nSendCycles = pSchedule%nSendCycles
+       nRecvCycles = pSchedule%nRecvCycles
+
+       !==================================================
+       !  Fire off the sends
+       !==================================================
+
+       do icycle=1,nSendCycles
+          pCycle      => pSchedule%SendCycle(icycle)
+          dest            = pCycle%dest - 1
+          length      = nlyr * pCycle%lengthP
+          tag             = pCycle%tag
+          iptr            = pCycle%ptrP
+          !DBG if(Debug) print *,'bndry_exchangeV: MPI_Isend: DEST:',dest,'LENGTH:',length,'TAG: ',tag
+          call MPI_Isend(buffer%buf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
+          if(ierr .ne. MPI_SUCCESS) then
+             errorcode=ierr
+             call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+             print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
+          endif
+       end do    ! icycle
+
+       !==================================================
+       !  Post the Receives 
+       !==================================================
+       do icycle=1,nRecvCycles
+          pCycle         => pSchedule%RecvCycle(icycle)
+          source          = pCycle%source - 1
+          length      = nlyr * pCycle%lengthP
+          tag             = pCycle%tag
+          iptr            = pCycle%ptrP
+          !DBG if(Debug) print *,'bndry_exchangeV: MPI_Irecv: SRC:',source,'LENGTH:',length,'TAG: ',tag
+          call MPI_Irecv(buffer%receive(1,iptr),length,MPIreal_t, &
+               source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
+          if(ierr .ne. MPI_SUCCESS) then
+             errorcode=ierr
+             call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+             print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
+          endif
+       end do    ! icycle
+
+
+       !==================================================
+       !  Wait for all the receives to complete
+       !==================================================
+
+       call MPI_Waitall(nSendCycles,Srequest,status,ierr)
+       call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
+
+       do icycle=1,nRecvCycles
+          pCycle         => pSchedule%RecvCycle(icycle)
+          length             = pCycle%lengthP
+          iptr            = pCycle%ptrP
+          do i=0,length-1
+             buffer%buf(1:nlyr,iptr+i) = buffer%receive(1:nlyr,iptr+i)
+          enddo
+       end do   ! icycle
+
+
+#endif
+    endif  ! if (hybrid%ithr == 0)
+#if (! defined ELEMENT_OPENMP)
+    !$OMP BARRIER
+#endif
+!   call t_stopf('bndry_exchange')
+
+  end subroutine bndry_exchangeV_openacc
 
 
 
