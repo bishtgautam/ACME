@@ -41,7 +41,7 @@ module openacc_mod
   integer,parameter :: DSSomega = 2
   integer,parameter :: DSSdiv_vdp_ave = 3
   integer,parameter :: DSSno_var = -1
-  integer           :: nbuf
+  integer :: nbuf
 
   real(kind=real_kind)   , allocatable :: qmin            (:,:,:)
   real(kind=real_kind)   , allocatable :: qmax            (:,:,:)
@@ -52,6 +52,8 @@ module openacc_mod
   real(kind=real_kind)   , allocatable :: new_dinv        (:,:,:,:,:)
   real(kind=real_kind)   , allocatable :: edgebuf         (:,:)
   real(kind=real_kind)   , allocatable :: edgerecv        (:,:)
+  real(kind=real_kind)   , allocatable :: sendbuf         (:,:,:)
+  real(kind=real_kind)   , allocatable :: recvbuf         (:,:,:)
   integer(kind=int_kind) , allocatable :: putmapP         (:,:)
   integer(kind=int_kind) , allocatable :: getmapP         (:,:)
   logical(kind=log_kind) , allocatable :: reverse         (:,:)
@@ -64,10 +66,13 @@ contains
 
   subroutine openacc_init(elem)
     use dimensions_mod, only : nlev, qsize, nelemd
+    use schedule_mod  , only: schedule_t, cycle_t, schedule
     type (element_t), intent(inout) :: elem(:)
     real(kind=real_kind), pointer :: buf_ptr(:) => null()
     real(kind=real_kind), pointer :: receive_ptr(:) => null()
     integer :: i , j , ie
+    integer :: nSendCycles, nRecvCycles, mx_send_len, mx_recv_len, icycle
+    type(Schedule_t),pointer :: pSchedule
 
     call initEdgeBuffer( edgeAdvQ3  , max(nlev,qsize*nlev*3) , buf_ptr , receive_ptr )  ! Qtens , Qmin , Qmax
     call initEdgeBuffer( edgeAdv1   , nlev                   , buf_ptr , receive_ptr )
@@ -81,8 +86,23 @@ contains
     !$OMP BARRIER
     !$OMP MASTER
 
-    ! this static array is shared by all threads, so dimension for all threads (nelemd), not nets:nete:
-    nbuf=4*(np+max_corner_elem)*nelemd
+#ifdef _PREDICT
+    pSchedule => Schedule(iam)
+#else
+    pSchedule => Schedule(1)
+#endif
+    nSendCycles = pSchedule%nSendCycles
+    nRecvCycles = pSchedule%nRecvCycles
+    mx_send_len = 0
+    mx_recv_len = 0
+    do icycle = 1 , nSendCycles
+      if (pSchedule%SendCycle(icycle)%lengthP > mx_send_len) mx_send_len = pSchedule%SendCycle(icycle)%lengthP
+    enddo
+    do icycle = 1 , nRecvCycles
+      if (pSchedule%RecvCycle(icycle)%lengthP > mx_recv_len) mx_recv_len = pSchedule%RecvCycle(icycle)%lengthP 
+    enddo
+    nbuf = 4*(np+max_corner_elem)*nelemd
+
     allocate( putmapP         (max_neigh_edges   ,nelemd) )
     allocate( getmapP         (max_neigh_edges   ,nelemd) )
     allocate( reverse         (max_neigh_edges   ,nelemd) )
@@ -95,6 +115,12 @@ contains
     allocate( dp              (np,np,nlev        ,nelemd) )
     allocate( Qtens_biharmonic(np,np,nlev  ,qsize,nelemd) )
     allocate( new_dinv        (np,np,2,2         ,nelemd) )
+    if (nSendCycles > 0) then
+      allocate( sendbuf(nlev*qsize,mx_send_len,nSendCycles) )
+    endif
+    if (nRecvCycles > 0) then
+      allocate( recvbuf(nlev*qsize,mx_recv_len,nRecvCycles) )
+    endif
     do ie = 1 , nelemd
       do j = 1 , np
         do i = 1 , np
@@ -726,6 +752,7 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 
 
   subroutine bndry_exchangeV_openacc(hybrid,edgebuf,edgerecv,nlyr)
+    use openacc
     use hybrid_mod, only : hybrid_t
     use kinds, only : log_kind
     use edge_mod, only : Edgebuffer_t
@@ -752,9 +779,6 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
     integer                          :: i
     logical(kind=log_kind),parameter :: Debug = .FALSE.
 #ifdef _MPI
-    !$acc update host( edgebuf ) async(1)
-    !$acc wait
-
     !Setup the pointer to proper Schedule
 #ifdef _PREDICT
     pSchedule => Schedule(iam)
@@ -772,6 +796,7 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
       length =  nlyr * pCycle%lengthP
       tag    =  pCycle%tag
       iptr   =  pCycle%ptrP
+      call acc_update_self( edgebuf( 1:nlyr , iptr:iptr+pCycle%lengthP-1 ) )
       call MPI_Isend(edgebuf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
       if(ierr .ne. MPI_SUCCESS) then
         errorcode=ierr
@@ -807,8 +832,8 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
       do i = 0 , length-1
         edgebuf(1:nlyr,iptr+i) = edgerecv(1:nlyr,iptr+i)
       enddo
+      call acc_update_device( edgebuf( 1:nlyr , iptr:iptr+pCycle%lengthP-1 ) )
     enddo
-    !$acc update device( edgebuf ) async(1)
 #endif
   end subroutine bndry_exchangeV_openacc
 
