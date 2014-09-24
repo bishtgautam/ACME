@@ -1,3 +1,6 @@
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 module openacc_mod
 #if USE_OPENACC
@@ -48,6 +51,7 @@ module openacc_mod
   real(kind=real_kind)   , allocatable :: Qtens_biharmonic(:,:,:,:,:)
   real(kind=real_kind)   , allocatable :: new_dinv        (:,:,:,:,:)
   real(kind=real_kind)   , allocatable :: edgebuf         (:,:)
+  real(kind=real_kind)   , allocatable :: edgerecv        (:,:)
   integer(kind=int_kind) , allocatable :: putmapP         (:,:)
   integer(kind=int_kind) , allocatable :: getmapP         (:,:)
   logical(kind=log_kind) , allocatable :: reverse         (:,:)
@@ -83,6 +87,7 @@ contains
     allocate( getmapP         (max_neigh_edges   ,nelemd) )
     allocate( reverse         (max_neigh_edges   ,nelemd) )
     allocate( edgebuf         (qsize*nlev,nbuf          ) )
+    allocate( edgerecv        (qsize*nlev,nbuf          ) )
     allocate( qmin            (      nlev  ,qsize,nelemd) )
     allocate( qmax            (      nlev  ,qsize,nelemd) )
     allocate( Vstar           (np,np,nlev,2      ,nelemd) )
@@ -150,11 +155,7 @@ contains
   integer :: rhs_viss = 0
   integer(kind=8) :: tc1,tc2,tr,tm
   logical, save :: first_time = .true.
-! call t_barrierf('sync_euler_step', hybrid%par%comm)
-!   call t_startf('euler_step')
-!pw++
   call t_startf('euler_step_openacc')
-!pw--
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   compute Q min/max values for lim8
@@ -387,57 +388,40 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
-  if ( DSSopt == DSSno_var ) then
-    edgeAdv%buf(:,:) = edgebuf(:,:)
-  else
-    edgeAdv_p1%buf(:,:) = edgebuf(:,:)
-  endif
+  call bndry_exchangeV_openacc(hybrid,edgebuf,edgerecv,nlev*qsize)
+  edgeAdv%buf(:,:) = edgebuf(:,:)
+  do ie = nets , nete
+    call edgeVunpack( edgeAdv , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
+    do q = 1 , qsize
+      do k = 1 , nlev
+        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
+      enddo
+    enddo
+  enddo
+
+
+
   if ( DSSopt /= DSSno_var ) then
     do ie = nets , nete
       if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
       if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
       if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
-      do k = 1 , nlev   ! also DSS extra field
+      do k = 1 , nlev
         DSSvar(:,:,k) = elem(ie)%spheremp(:,:) * DSSvar(:,:,k) 
       enddo
-      call edgeVpack( edgeAdv_p1 , DSSvar(:,:,1:nlev) , nlev , nlev*qsize , elem(ie)%desc )
+      call edgeVpack( edgeAdv1 , DSSvar(:,:,1:nlev) , nlev , 0 , elem(ie)%desc )
     enddo
-  endif
-!pw++
-  call t_startf('eus_bexchV')
-!pw--
-  if ( DSSopt == DSSno_var ) then
-    call bndry_exchangeV( hybrid , edgeAdv    )
-  else
-    call bndry_exchangeV( hybrid , edgeAdv_p1 )
-  endif
-!pw++
-  call t_stopf('eus_bexchV')
-!pw--
-  do ie = nets , nete
-    if ( DSSopt == DSSno_var ) then
-      call edgeVunpack( edgeAdv    , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-      do q = 1 , qsize
-        do k = 1 , nlev    !  Potential loop inversion (AAM)
-          elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
-        enddo
-      enddo
-    else
-      call edgeVunpack( edgeAdv_p1 , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-      do q = 1 , qsize
-        do k = 1 , nlev    !  Potential loop inversion (AAM)
-          elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
-        enddo
-      enddo
+    call bndry_exchangeV( hybrid , edgeAdv1 )
+    do ie = nets , nete
       if ( DSSopt == DSSeta         ) DSSvar => elem(ie)%derived%eta_dot_dpdn(:,:,:)
       if ( DSSopt == DSSomega       ) DSSvar => elem(ie)%derived%omega_p(:,:,:)
       if ( DSSopt == DSSdiv_vdp_ave ) DSSvar => elem(ie)%derived%divdp_proj(:,:,:)
-      call edgeVunpack( edgeAdv_p1 , DSSvar(:,:,1:nlev) , nlev , qsize*nlev , elem(ie)%desc )
+      call edgeVunpack( edgeAdv1 , DSSvar(:,:,1:nlev) , nlev , 0 , elem(ie)%desc )
       do k = 1 , nlev
         DSSvar(:,:,k) = DSSvar(:,:,k) * elem(ie)%rspheremp(:,:)
       enddo
-    endif
-  enddo
+    enddo
+  endif
 #ifdef DEBUGOMP
 #if (! defined ELEMENT_OPENMP)
 !$OMP BARRIER
@@ -687,118 +671,91 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
-  subroutine bndry_exchangeV_openacc(hybrid,buffer)
+  subroutine bndry_exchangeV_openacc(hybrid,edgebuf,edgerecv,nlyr)
     use hybrid_mod, only : hybrid_t
     use kinds, only : log_kind
     use edge_mod, only : Edgebuffer_t
     use schedule_mod, only : schedule_t, cycle_t, schedule
     use dimensions_mod, only: nelemd, np
-!   use perf_mod, only: t_startf, t_stopf ! _EXTERNAL
 #ifdef _MPI
-    use parallel_mod, only : abortmp, status, srequest, rrequest, &
-         mpireal_t, mpiinteger_t, mpi_success
+    use parallel_mod, only : abortmp, status, srequest, rrequest, mpireal_t, mpiinteger_t, mpi_success
 #else
     use parallel_mod, only : abortmp
 #endif
     implicit none
-
-    type (hybrid_t)                   :: hybrid
-    type (EdgeBuffer_t)               :: buffer
-
-    type (Schedule_t),pointer                     :: pSchedule
-    type (Cycle_t),pointer                        :: pCycle
-    integer                                       :: dest,length,tag
-    integer                                       :: icycle,ierr
-    integer                                       :: iptr,source,nlyr
-    integer                                       :: nSendCycles,nRecvCycles
-    integer                                       :: errorcode,errorlen
-    character*(80) errorstring
-
-    integer        :: i
-    logical(kind=log_kind),parameter      :: Debug = .FALSE.
-
-
-!   call t_startf('bndry_exchange')
-#if (! defined ELEMENT_OPENMP)
+    type (hybrid_t)       , intent(in   ) :: hybrid
+    real(kind=real_kind)  , intent(inout) :: edgebuf (nlyr,nbuf)
+    real(kind=real_kind)  , intent(inout) :: edgerecv(nlyr,nbuf)
+    integer(kind=int_kind), intent(in   ) :: nlyr
+    type (Schedule_t),pointer        :: pSchedule
+    type (Cycle_t),pointer           :: pCycle
+    integer                          :: dest,length,tag
+    integer                          :: icycle,ierr
+    integer                          :: iptr,source
+    integer                          :: nSendCycles,nRecvCycles
+    integer                          :: errorcode,errorlen
+    character(len=80)                :: errorstring
+    integer                          :: i
+    logical(kind=log_kind),parameter :: Debug = .FALSE.
     !$OMP BARRIER
-#endif
     if(hybrid%ithr == 0) then 
-
 #ifdef _MPI
-       ! Setup the pointer to proper Schedule
+      !Setup the pointer to proper Schedule
 #ifdef _PREDICT
-       pSchedule => Schedule(iam)
+      pSchedule => Schedule(iam)
 #else
-       pSchedule => Schedule(1)
+      pSchedule => Schedule(1)
 #endif
-       nlyr = buffer%nlyr
-
-       nSendCycles = pSchedule%nSendCycles
-       nRecvCycles = pSchedule%nRecvCycles
-
-       !==================================================
-       !  Fire off the sends
-       !==================================================
-
-       do icycle=1,nSendCycles
-          pCycle      => pSchedule%SendCycle(icycle)
-          dest            = pCycle%dest - 1
-          length      = nlyr * pCycle%lengthP
-          tag             = pCycle%tag
-          iptr            = pCycle%ptrP
-          !DBG if(Debug) print *,'bndry_exchangeV: MPI_Isend: DEST:',dest,'LENGTH:',length,'TAG: ',tag
-          call MPI_Isend(buffer%buf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
-          if(ierr .ne. MPI_SUCCESS) then
-             errorcode=ierr
-             call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
-             print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
-          endif
-       end do    ! icycle
-
-       !==================================================
-       !  Post the Receives 
-       !==================================================
-       do icycle=1,nRecvCycles
-          pCycle         => pSchedule%RecvCycle(icycle)
-          source          = pCycle%source - 1
-          length      = nlyr * pCycle%lengthP
-          tag             = pCycle%tag
-          iptr            = pCycle%ptrP
-          !DBG if(Debug) print *,'bndry_exchangeV: MPI_Irecv: SRC:',source,'LENGTH:',length,'TAG: ',tag
-          call MPI_Irecv(buffer%receive(1,iptr),length,MPIreal_t, &
-               source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
-          if(ierr .ne. MPI_SUCCESS) then
-             errorcode=ierr
-             call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
-             print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
-          endif
-       end do    ! icycle
-
-
-       !==================================================
-       !  Wait for all the receives to complete
-       !==================================================
-
-       call MPI_Waitall(nSendCycles,Srequest,status,ierr)
-       call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
-
-       do icycle=1,nRecvCycles
-          pCycle         => pSchedule%RecvCycle(icycle)
-          length             = pCycle%lengthP
-          iptr            = pCycle%ptrP
-          do i=0,length-1
-             buffer%buf(1:nlyr,iptr+i) = buffer%receive(1:nlyr,iptr+i)
-          enddo
-       end do   ! icycle
-
-
+      nSendCycles = pSchedule%nSendCycles
+      nRecvCycles = pSchedule%nRecvCycles
+      !==================================================
+      !  Fire off the sends
+      !==================================================
+      do icycle = 1 , nSendCycles
+        pCycle => pSchedule%SendCycle(icycle)
+        dest   =  pCycle%dest - 1
+        length =  nlyr * pCycle%lengthP
+        tag    =  pCycle%tag
+        iptr   =  pCycle%ptrP
+        call MPI_Isend(edgebuf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
+        if(ierr .ne. MPI_SUCCESS) then
+          errorcode=ierr
+          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+          print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
+        endif
+      enddo
+      !==================================================
+      !  Post the Receives 
+      !==================================================
+      do icycle = 1 , nRecvCycles
+        pCycle => pSchedule%RecvCycle(icycle)
+        source =  pCycle%source - 1
+        length =  nlyr * pCycle%lengthP
+        tag    =  pCycle%tag
+        iptr   =  pCycle%ptrP
+        call MPI_Irecv(edgerecv(1,iptr),length,MPIreal_t,source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
+        if(ierr .ne. MPI_SUCCESS) then
+          errorcode=ierr
+          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+          print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
+        endif
+      enddo
+      !==================================================
+      !  Wait for all the receives to complete
+      !==================================================
+      call MPI_Waitall(nSendCycles,Srequest,status,ierr)
+      call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
+      do icycle=1,nRecvCycles
+        pCycle => pSchedule%RecvCycle(icycle)
+        length =  pCycle%lengthP
+        iptr   =  pCycle%ptrP
+        do i = 0 , length-1
+          edgebuf(1:nlyr,iptr+i) = edgerecv(1:nlyr,iptr+i)
+        enddo
+      enddo
 #endif
     endif  ! if (hybrid%ithr == 0)
-#if (! defined ELEMENT_OPENMP)
     !$OMP BARRIER
-#endif
-!   call t_stopf('bndry_exchange')
-
   end subroutine bndry_exchangeV_openacc
 
 
