@@ -155,7 +155,6 @@ contains
   integer :: rhs_viss = 0
   integer(kind=8) :: tc1,tc2,tr,tm
   logical, save :: first_time = .true.
-  call t_startf('euler_step_openacc')
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   compute Q min/max values for lim8
@@ -286,16 +285,15 @@ contains
 
 !$OMP BARRIER
 if (hybrid%ithr == 0) then   !!!!!!!!!!!!!!!!!!!!!!!!! OMP MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
-  !$acc data present_or_create( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier,edgebuf,putmapP,getmapP )
+  !$acc data present_or_create( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier,edgebuf,putmapP,getmapP,reverse,Vstar )
 if (first_time) then
-  !$acc update          device( nelemd,qsize,n0_qdp,elem,deriv,dt,      hvcoord         ,rhs_multiplier        ,putmapP,getmapP )
+  !$acc update          device( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier,edgebuf,putmapP,getmapP,reverse,Vstar )
   first_time = .false.
 else
-  !$acc update          device(              n0_qdp,elem,      dt                       ,rhs_multiplier                         )
+  !$acc update          device(              n0_qdp,elem,      dt                       ,rhs_multiplier                                       )
 endif
   !$acc wait
-
-  if (hybrid%masterthread) call system_clock(tc1)
+  call t_startf('euler_step_openacc')
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   2D Advection step
@@ -313,7 +311,7 @@ endif
     enddo
   enddo
 
-  !$acc parallel loop gang vector collapse(5) async(1)
+  !$acc parallel loop gang vector collapse(5) async(1) vector_length(256)
   do ie = 1 , nelemd
     do q = 1 , qsize
       do k = 1 , nlev
@@ -347,7 +345,7 @@ endif
   ! apply mass matrix, overwrite np1 with solution:
   ! dont do this earlier, since we allow np1_qdp == n0_qdp 
   ! and we dont want to overwrite n0_qdp until we are done using it
-  !$acc parallel loop gang vector collapse(5) async(1)
+  !$acc parallel loop gang vector collapse(5) async(1) vector_length(256)
   do ie = 1 , nelemd
     do q = 1 , qsize
       do k = 1 , nlev
@@ -360,7 +358,7 @@ endif
     enddo
   enddo
 
-  !$acc parallel loop gang vector collapse(3) async(1)
+  !$acc parallel loop gang vector collapse(3) async(1) vector_length(64)
   do ie = 1 , nelemd
     do q = 1 , qsize
       do k = nlev , 1 , -1
@@ -374,30 +372,30 @@ endif
     enddo
   enddo
 
-  call edgeVpack_qdp(elem,edgebuf,nlev*qsize,0,np1_qdp,putmapP,reverse)
+  call edgeVpack_qdp  (elem,edgebuf,nlev*qsize,0,np1_qdp,putmapP,reverse)
+  call bndry_exchangeV_openacc(hybrid,edgebuf,edgerecv,nlev*qsize)
+  call edgeVunpack_qdp(elem,edgebuf,nlev*qsize,0,np1_qdp,getmapP)
+
+  !$acc parallel loop gang vector collapse(5) async(1) vector_length(128)
+  do ie = 1 , nelemd
+    do q = 1 , qsize
+      do k = 1 , nlev
+        do j = 1 , np
+          do i = 1 , np
+            elem(ie)%state%Qdp(i,j,k,q,np1_qdp) = elem(ie)%rspheremp(i,j) * elem(ie)%state%Qdp(i,j,k,q,np1_qdp)
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
 
   !$acc wait(1)
-  if (hybrid%masterthread) call system_clock(tc2,tr)
-  if (hybrid%masterthread) write(*,*) 'MYTIMER: ', dble(tc2-tc1)/tr
-
-  !$acc update host( elem , edgebuf )
+  call t_stopf('euler_step_openacc')
+  !$acc update host( elem )
   !$acc wait
   !$acc end data
 endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 !$OMP BARRIER
-
-
-
-  call bndry_exchangeV_openacc(hybrid,edgebuf,edgerecv,nlev*qsize)
-  edgeAdv%buf(:,:) = edgebuf(:,:)
-  do ie = nets , nete
-    call edgeVunpack( edgeAdv , elem(ie)%state%Qdp(:,:,:,:,np1_qdp) , nlev*qsize , 0 , elem(ie)%desc )
-    do q = 1 , qsize
-      do k = 1 , nlev
-        elem(ie)%state%Qdp(:,:,k,q,np1_qdp) = elem(ie)%rspheremp(:,:) * elem(ie)%state%Qdp(:,:,k,q,np1_qdp)
-      enddo
-    enddo
-  enddo
 
 
 
@@ -422,15 +420,14 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
       enddo
     enddo
   endif
+
+
+
 #ifdef DEBUGOMP
 #if (! defined ELEMENT_OPENMP)
 !$OMP BARRIER
 #endif
 #endif
-!pw++
-  call t_stopf('euler_step_openacc')
-!pw--
-!   call t_stopf('euler_step')
   end subroutine euler_step_oacc
 
 
@@ -618,8 +615,7 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
     logical(kind=log_kind) ,intent(in   ) :: reverse(max_neigh_edges,nelemd)
     ! Local variables
     integer :: i,k,ir,ll,kq,ie,q
-    call t_startf('edge_pack_qdp_openacc')
-    !$acc parallel loop gang vector collapse(4) private(kq) async(1)
+    !$acc parallel loop gang vector collapse(4) private(kq) async(1) vector_length(64)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
@@ -633,7 +629,7 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
         enddo
       enddo
     enddo
-    !$acc parallel loop gang vector collapse(4) private(kq,ir) async(1)
+    !$acc parallel loop gang vector collapse(4) private(kq,ir) async(1) vector_length(128)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
@@ -648,26 +644,84 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
         enddo
       enddo
     enddo
-    !$acc parallel loop gang vector collapse(4) private(kq,ll) async(1)
+    !$acc parallel loop gang vector collapse(4) private(kq,ll) async(1) vector_length(64)
     do ie = 1 , nelemd
       do q = 1 , qsize
         do k = 1 , nlev
           do i = 1 , max_corner_elem
             kq = (q-1)*nlev+k
-            ll = swest+0*max_corner_elem+i-1    ! SWEST
-            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(1 ,1 ,k,q,nt)
-            ll = swest+1*max_corner_elem+i-1    ! SEAST
-            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(np,1 ,k,q,nt)
-            ll = swest+2*max_corner_elem+i-1    ! NWEST
-            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(1 ,np,k,q,nt)
-            ll = swest+3*max_corner_elem+i-1    ! NEAST
-            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(np,np,k,q,nt)
+            ll = swest+0*max_corner_elem+i-1
+            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(1 ,1 ,k,q,nt)    ! SWEST
+            ll = swest+1*max_corner_elem+i-1
+            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(np,1 ,k,q,nt)    ! SEAST
+            ll = swest+2*max_corner_elem+i-1
+            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(1 ,np,k,q,nt)    ! NWEST
+            ll = swest+3*max_corner_elem+i-1
+            if (putmapP(ll,ie) /= -1) edgebuf(kptr+kq,putmapP(ll,ie)+1) = elem(ie)%state%Qdp(np,np,k,q,nt)    ! NEAST
           enddo
         enddo
       enddo
     enddo
-    call t_stopf('edge_pack_qdp_openacc')
   end subroutine edgeVpack_qdp
+
+
+
+  subroutine edgeVunpack_qdp(elem,edgebuf,vlyr,kptr,nt,getmapP)
+    use edge_mod, only: EdgeDescriptor_t, EdgeBuffer_t
+    use dimensions_mod, only : np, max_corner_elem
+    use control_mod, only : north, south, east, west, neast, nwest, seast, swest
+    implicit none
+    type(element_t)        ,intent(  out) :: elem(:)
+    integer                ,intent(in   ) :: vlyr
+    real(kind=real_kind)   ,intent(in   ) :: edgebuf(vlyr,nbuf)
+    integer                ,intent(in   ) :: kptr
+    integer                ,intent(in   ) :: nt
+    integer(kind=int_kind) ,intent(in   ) :: getmapP(max_neigh_edges,nelemd)
+    ! Local
+    integer :: i,k,ll,q,ie,kq
+    !$acc parallel loop gang vector collapse(4) private(kq) async(1) vector_length(64)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do i = 1 , np
+            kq = (q-1)*nlev+k
+            elem(ie)%state%Qdp(i ,1 ,k,q,nt) = elem(ie)%state%Qdp(i ,1 ,k,q,nt) + edgebuf(kptr+kq,getmapP(south,ie)+i)
+            elem(ie)%state%Qdp(i ,np,k,q,nt) = elem(ie)%state%Qdp(i ,np,k,q,nt) + edgebuf(kptr+kq,getmapP(north,ie)+i)
+          enddo
+        enddo
+      enddo
+    enddo
+    !$acc parallel loop gang vector collapse(4) private(kq) async(1) vector_length(128)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do i = 1 , np
+            kq = (q-1)*nlev+k
+            elem(ie)%state%Qdp(1 ,i ,k,q,nt) = elem(ie)%state%Qdp(1 ,i ,k,q,nt) + edgebuf(kptr+kq,getmapP(west ,ie)+i)
+            elem(ie)%state%Qdp(np,i ,k,q,nt) = elem(ie)%state%Qdp(np,i ,k,q,nt) + edgebuf(kptr+kq,getmapP(east ,ie)+i)
+          enddo
+        enddo
+      enddo
+    enddo
+    !$acc parallel loop gang vector collapse(4) private(kq,ll) async(1) vector_length(32)
+    do ie = 1 , nelemd
+      do q = 1 , qsize
+        do k = 1 , nlev
+          do i = 1 , max_corner_elem
+            kq = (q-1)*nlev+k
+            ll = swest+0*max_corner_elem+i-1
+            if(getmapP(ll,ie) /= -1) elem(ie)%state%Qdp(1 ,1 ,k,q,nt) = elem(ie)%state%Qdp(1 ,1 ,k,q,nt) + edgebuf(kptr+kq,getmapP(ll,ie)+1)    ! SWEST
+            ll = swest+1*max_corner_elem+i-1
+            if(getmapP(ll,ie) /= -1) elem(ie)%state%Qdp(np,1 ,k,q,nt) = elem(ie)%state%Qdp(np,1 ,k,q,nt) + edgebuf(kptr+kq,getmapP(ll,ie)+1)    ! SEAST
+            ll = swest+2*max_corner_elem+i-1
+            if(getmapP(ll,ie) /= -1) elem(ie)%state%Qdp(1 ,np,k,q,nt) = elem(ie)%state%Qdp(1 ,np,k,q,nt) + edgebuf(kptr+kq,getmapP(ll,ie)+1)    ! NWEST
+            ll = swest+3*max_corner_elem+i-1
+            if(getmapP(ll,ie) /= -1) elem(ie)%state%Qdp(np,np,k,q,nt) = elem(ie)%state%Qdp(np,np,k,q,nt) + edgebuf(kptr+kq,getmapP(ll,ie)+1)    ! NEAST
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine edgeVunpack_qdp
 
 
 
@@ -697,65 +751,65 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
     character(len=80)                :: errorstring
     integer                          :: i
     logical(kind=log_kind),parameter :: Debug = .FALSE.
-    !$OMP BARRIER
-    if(hybrid%ithr == 0) then 
 #ifdef _MPI
-      !Setup the pointer to proper Schedule
+    !$acc update host( edgebuf ) async(1)
+    !$acc wait
+
+    !Setup the pointer to proper Schedule
 #ifdef _PREDICT
-      pSchedule => Schedule(iam)
+    pSchedule => Schedule(iam)
 #else
-      pSchedule => Schedule(1)
+    pSchedule => Schedule(1)
 #endif
-      nSendCycles = pSchedule%nSendCycles
-      nRecvCycles = pSchedule%nRecvCycles
-      !==================================================
-      !  Fire off the sends
-      !==================================================
-      do icycle = 1 , nSendCycles
-        pCycle => pSchedule%SendCycle(icycle)
-        dest   =  pCycle%dest - 1
-        length =  nlyr * pCycle%lengthP
-        tag    =  pCycle%tag
-        iptr   =  pCycle%ptrP
-        call MPI_Isend(edgebuf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
-        if(ierr .ne. MPI_SUCCESS) then
-          errorcode=ierr
-          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
-          print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
-        endif
+    nSendCycles = pSchedule%nSendCycles
+    nRecvCycles = pSchedule%nRecvCycles
+    !==================================================
+    !  Fire off the sends
+    !==================================================
+    do icycle = 1 , nSendCycles
+      pCycle => pSchedule%SendCycle(icycle)
+      dest   =  pCycle%dest - 1
+      length =  nlyr * pCycle%lengthP
+      tag    =  pCycle%tag
+      iptr   =  pCycle%ptrP
+      call MPI_Isend(edgebuf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
+      if(ierr .ne. MPI_SUCCESS) then
+        errorcode=ierr
+        call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+        print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
+      endif
+    enddo
+    !==================================================
+    !  Post the Receives 
+    !==================================================
+    do icycle = 1 , nRecvCycles
+      pCycle => pSchedule%RecvCycle(icycle)
+      source =  pCycle%source - 1
+      length =  nlyr * pCycle%lengthP
+      tag    =  pCycle%tag
+      iptr   =  pCycle%ptrP
+      call MPI_Irecv(edgerecv(1,iptr),length,MPIreal_t,source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
+      if(ierr .ne. MPI_SUCCESS) then
+        errorcode=ierr
+        call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+        print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
+      endif
+    enddo
+    !==================================================
+    !  Wait for all the receives to complete
+    !==================================================
+    call MPI_Waitall(nSendCycles,Srequest,status,ierr)
+    call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
+    do icycle=1,nRecvCycles
+      pCycle => pSchedule%RecvCycle(icycle)
+      length =  pCycle%lengthP
+      iptr   =  pCycle%ptrP
+      do i = 0 , length-1
+        edgebuf(1:nlyr,iptr+i) = edgerecv(1:nlyr,iptr+i)
       enddo
-      !==================================================
-      !  Post the Receives 
-      !==================================================
-      do icycle = 1 , nRecvCycles
-        pCycle => pSchedule%RecvCycle(icycle)
-        source =  pCycle%source - 1
-        length =  nlyr * pCycle%lengthP
-        tag    =  pCycle%tag
-        iptr   =  pCycle%ptrP
-        call MPI_Irecv(edgerecv(1,iptr),length,MPIreal_t,source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
-        if(ierr .ne. MPI_SUCCESS) then
-          errorcode=ierr
-          call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
-          print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
-        endif
-      enddo
-      !==================================================
-      !  Wait for all the receives to complete
-      !==================================================
-      call MPI_Waitall(nSendCycles,Srequest,status,ierr)
-      call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
-      do icycle=1,nRecvCycles
-        pCycle => pSchedule%RecvCycle(icycle)
-        length =  pCycle%lengthP
-        iptr   =  pCycle%ptrP
-        do i = 0 , length-1
-          edgebuf(1:nlyr,iptr+i) = edgerecv(1:nlyr,iptr+i)
-        enddo
-      enddo
+    enddo
+    !$acc update device( edgebuf ) async(1)
 #endif
-    endif  ! if (hybrid%ithr == 0)
-    !$OMP BARRIER
   end subroutine bndry_exchangeV_openacc
 
 
