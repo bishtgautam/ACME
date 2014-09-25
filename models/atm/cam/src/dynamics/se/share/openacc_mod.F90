@@ -26,7 +26,8 @@ module openacc_mod
   use bndry_mod, only          : bndry_exchangev
   use viscosity_mod, only      : biharmonic_wk_scalar, biharmonic_wk_scalar_minmax, neighbor_minmax
   use perf_mod, only           : t_startf, t_stopf, t_barrierf ! _EXTERNAL
-  use parallel_mod, only   : abortmp
+  use parallel_mod, only       : abortmp
+  use schedule_mod, only       : Cycle_t
   implicit none
   private
   save
@@ -52,8 +53,14 @@ module openacc_mod
   real(kind=real_kind)   , allocatable :: new_dinv        (:,:,:,:,:)
   real(kind=real_kind)   , allocatable :: edgebuf         (:,:)
   real(kind=real_kind)   , allocatable :: edgerecv        (:,:)
-  real(kind=real_kind)   , allocatable :: sendbuf         (:,:,:)
-  real(kind=real_kind)   , allocatable :: recvbuf         (:,:,:)
+  real(kind=real_kind)   , allocatable :: sendbuf         (:,:)
+  real(kind=real_kind)   , allocatable :: recvbuf         (:,:)
+  integer                , allocatable :: sendbuf_cycbeg  (:)
+  integer                , allocatable :: recvbuf_cycbeg  (:)
+  integer                , allocatable :: send_ptrP       (:)
+  integer                , allocatable :: recv_ptrP       (:)
+  integer                , allocatable :: send_lengthP    (:)
+  integer                , allocatable :: recv_lengthP    (:)
   integer(kind=int_kind) , allocatable :: putmapP         (:,:)
   integer(kind=int_kind) , allocatable :: getmapP         (:,:)
   logical(kind=log_kind) , allocatable :: reverse         (:,:)
@@ -71,7 +78,7 @@ contains
     real(kind=real_kind), pointer :: buf_ptr(:) => null()
     real(kind=real_kind), pointer :: receive_ptr(:) => null()
     integer :: i , j , ie
-    integer :: nSendCycles, nRecvCycles, mx_send_len, mx_recv_len, icycle
+    integer :: nSendCycles, nRecvCycles, tot_send_len, tot_recv_len, icycle
     type(Schedule_t),pointer :: pSchedule
 
     call initEdgeBuffer( edgeAdvQ3  , max(nlev,qsize*nlev*3) , buf_ptr , receive_ptr )  ! Qtens , Qmin , Qmax
@@ -93,13 +100,13 @@ contains
 #endif
     nSendCycles = pSchedule%nSendCycles
     nRecvCycles = pSchedule%nRecvCycles
-    mx_send_len = 0
-    mx_recv_len = 0
+    tot_send_len = 0
     do icycle = 1 , nSendCycles
-      if (pSchedule%SendCycle(icycle)%lengthP > mx_send_len) mx_send_len = pSchedule%SendCycle(icycle)%lengthP
+      tot_send_len = tot_send_len + pSchedule%SendCycle(icycle)%lengthP
     enddo
+    tot_recv_len = 0
     do icycle = 1 , nRecvCycles
-      if (pSchedule%RecvCycle(icycle)%lengthP > mx_recv_len) mx_recv_len = pSchedule%RecvCycle(icycle)%lengthP 
+      tot_recv_len = tot_recv_len + pSchedule%RecvCycle(icycle)%lengthP 
     enddo
     nbuf = 4*(np+max_corner_elem)*nelemd
 
@@ -115,11 +122,17 @@ contains
     allocate( dp              (np,np,nlev        ,nelemd) )
     allocate( Qtens_biharmonic(np,np,nlev  ,qsize,nelemd) )
     allocate( new_dinv        (np,np,2,2         ,nelemd) )
+    allocate( sendbuf         (nlev*qsize,tot_send_len)   )
+    allocate( recvbuf         (nlev*qsize,tot_send_len)   )
     if (nSendCycles > 0) then
-      allocate( sendbuf(nlev*qsize,mx_send_len,nSendCycles) )
+      allocate( send_ptrP     (nSendCycles) )
+      allocate( send_lengthP  (nSendCycles) )
+      allocate( sendbuf_cycbeg(nSendCycles) )
     endif
     if (nRecvCycles > 0) then
-      allocate( recvbuf(nlev*qsize,mx_recv_len,nRecvCycles) )
+      allocate( recv_ptrP     (nRecvCycles) )
+      allocate( recv_lengthP  (nRecvCycles) )
+      allocate( recvbuf_cycbeg(nRecvCycles) )
     endif
     do ie = 1 , nelemd
       do j = 1 , np
@@ -130,6 +143,25 @@ contains
       putmapP(:,ie) = elem(ie)%desc%putmapP(:)
       getmapP(:,ie) = elem(ie)%desc%getmapP(:)
       reverse(:,ie) = elem(ie)%desc%reverse(:)
+    enddo
+
+    do icycle = 1 , nSendCycles
+      send_ptrP   (icycle) = pSchedule%SendCycle(icycle)%ptrP
+      send_lengthP(icycle) = pSchedule%SendCycle(icycle)%lengthP
+    enddo
+    do icycle = 1 , nRecvCycles
+      recv_ptrP   (icycle) = pSchedule%RecvCycle(icycle)%ptrP
+      recv_lengthP(icycle) = pSchedule%RecvCycle(icycle)%lengthP
+    enddo
+
+    !For the packing of MPI data, determine where each cycle begins in the packed buffer
+    sendbuf_cycbeg(1) = 1
+    do icycle = 1 , nSendCycles-1
+      sendbuf_cycbeg(icycle+1) = sendbuf_cycbeg(icycle) + pSchedule%SendCycle(icycle)%lengthP
+    enddo
+    recvbuf_cycbeg(1) = 1
+    do icycle = 1 , nRecvCycles-1
+      recvbuf_cycbeg(icycle+1) = recvbuf_cycbeg(icycle) + pSchedule%RecvCycle(icycle)%lengthP
     enddo
 
     !$OMP END MASTER
@@ -311,12 +343,12 @@ contains
 
 !$OMP BARRIER
 if (hybrid%ithr == 0) then   !!!!!!!!!!!!!!!!!!!!!!!!! OMP MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
-  !$acc data present_or_create( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier,edgebuf,putmapP,getmapP,reverse,Vstar )
+  !$acc data  pcreate( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier,edgebuf,putmapP,getmapP,reverse,Vstar,sendbuf,recvbuf,send_lengthP,recv_lengthP,send_ptrP,recv_ptrP,sendbuf_cycbeg,recvbuf_cycbeg )
 if (first_time) then
-  !$acc update          device( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier,edgebuf,putmapP,getmapP,reverse,Vstar )
+  !$acc update device( nelemd,qsize,n0_qdp,elem,deriv,dt,qtens,hvcoord,new_dinv,rhs_multiplier,edgebuf,putmapP,getmapP,reverse,Vstar,sendbuf,recvbuf,send_lengthP,recv_lengthP,send_ptrP,recv_ptrP,sendbuf_cycbeg,recvbuf_cycbeg )
   first_time = .false.
 else
-  !$acc update          device(              n0_qdp,elem,      dt                       ,rhs_multiplier                                       )
+  !$acc update device(              n0_qdp,elem,      dt                       ,rhs_multiplier                                                                                                                                   )
 endif
   !$acc wait
   call t_startf('euler_step_openacc')
@@ -776,7 +808,7 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
     integer                          :: nSendCycles,nRecvCycles
     integer                          :: errorcode,errorlen
     character(len=80)                :: errorstring
-    integer                          :: i
+    integer                          :: i, j, max_lengthP
     logical(kind=log_kind),parameter :: Debug = .FALSE.
 #ifdef _MPI
     !Setup the pointer to proper Schedule
@@ -787,23 +819,7 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
 #endif
     nSendCycles = pSchedule%nSendCycles
     nRecvCycles = pSchedule%nRecvCycles
-    !==================================================
-    !  Fire off the sends
-    !==================================================
-    do icycle = 1 , nSendCycles
-      pCycle => pSchedule%SendCycle(icycle)
-      dest   =  pCycle%dest - 1
-      length =  nlyr * pCycle%lengthP
-      tag    =  pCycle%tag
-      iptr   =  pCycle%ptrP
-      call acc_update_self( edgebuf( 1:nlyr , iptr:iptr+pCycle%lengthP-1 ) )
-      call MPI_Isend(edgebuf(1,iptr),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
-      if(ierr .ne. MPI_SUCCESS) then
-        errorcode=ierr
-        call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
-        print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
-      endif
-    enddo
+
     !==================================================
     !  Post the Receives 
     !==================================================
@@ -813,26 +829,63 @@ endif   !!!!!!!!!!!!!!!!!!!!!!!!! OMP END MASTER !!!!!!!!!!!!!!!!!!!!!!!!!
       length =  nlyr * pCycle%lengthP
       tag    =  pCycle%tag
       iptr   =  pCycle%ptrP
-      call MPI_Irecv(edgerecv(1,iptr),length,MPIreal_t,source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
+      call MPI_Irecv(recvbuf(1,recvbuf_cycbeg(icycle)),length,MPIreal_t,source,tag,hybrid%par%comm,Rrequest(icycle),ierr)
       if(ierr .ne. MPI_SUCCESS) then
         errorcode=ierr
         call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
         print *,'bndry_exchangeV: Error after call to MPI_Irecv: ',errorstring
       endif
     enddo
+
+    !Pack the send arrays into one array for PCI-e transfer
+    max_lengthP = maxval(send_lengthP)
+    !$acc parallel loop gang vector collapse(3) async(1)
+    do icycle = 1 , nSendCycles
+      do j = 0 , max_lengthP
+        do i = 1 , nlyr
+          if ( j < send_lengthP(icycle) ) sendbuf( i , sendbuf_cycbeg(icycle)+j ) = edgebuf( i , send_ptrP(icycle)+j  )
+        enddo
+      enddo
+    enddo
+    !$acc update host(sendbuf) async(1)
+    !$acc wait(1)
+
+    !==================================================
+    !  Fire off the sends
+    !==================================================
+    do icycle = 1 , nSendCycles
+      pCycle => pSchedule%SendCycle(icycle)
+      dest   =  pCycle%dest - 1
+      length =  nlyr * pCycle%lengthP
+      tag    =  pCycle%tag
+      iptr   =  pCycle%ptrP
+      call MPI_Isend(sendbuf(1,sendbuf_cycbeg(icycle)),length,MPIreal_t,dest,tag,hybrid%par%comm,Srequest(icycle),ierr)
+      if(ierr .ne. MPI_SUCCESS) then
+        errorcode=ierr
+        call MPI_Error_String(errorcode,errorstring,errorlen,ierr)
+        print *,'bndry_exchangeV: Error after call to MPI_Isend: ',errorstring
+      endif
+    enddo
     !==================================================
     !  Wait for all the receives to complete
     !==================================================
-    call MPI_Waitall(nSendCycles,Srequest,status,ierr)
     call MPI_Waitall(nRecvCycles,Rrequest,status,ierr)
-    do icycle=1,nRecvCycles
-      pCycle => pSchedule%RecvCycle(icycle)
-      length =  pCycle%lengthP
-      iptr   =  pCycle%ptrP
-      do i = 0 , length-1
-        edgebuf(1:nlyr,iptr+i) = edgerecv(1:nlyr,iptr+i)
+    !$acc update device(recvbuf) async(1)
+
+    !==================================================
+    !  Wait for all the sends to complete
+    !==================================================
+    call MPI_Waitall(nSendCycles,Srequest,status,ierr)
+
+    !Unpack the send arrays into one array for PCI-e transfer
+    max_lengthP = maxval(recv_lengthP)
+    !$acc parallel loop gang vector collapse(3) async(1)
+    do icycle = 1 , nRecvCycles
+      do j = 0 , max_lengthP
+        do i = 1 , nlyr
+          if (j < recv_lengthP(icycle) ) edgebuf( i , recv_ptrP(icycle)+j  ) = recvbuf( i , recvbuf_cycbeg(icycle)+j )
+        enddo
       enddo
-      call acc_update_device( edgebuf( 1:nlyr , iptr:iptr+pCycle%lengthP-1 ) )
     enddo
 #endif
   end subroutine bndry_exchangeV_openacc
