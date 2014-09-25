@@ -9,6 +9,7 @@ module use /usr/projects/climate/SHARED_CLIMATE/modulefiles/all
 
 if ( $COMPILER == "intel" ) then
 	module load intel/13.1.3
+	module load mkl/11.1.4
 endif
 
 if ( $COMPILER == "pgi" ) then
