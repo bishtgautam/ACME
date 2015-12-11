@@ -1435,9 +1435,10 @@ contains
                      if (potential_immob_vr(c,j) > 0.0_r8) then
                         fpi_vr(c,j) = actual_immob_vr(c,j) / potential_immob_vr(c,j)
                      else
-                        fpi_vr(c,j) = 0.0_r8
+                        fpi_vr(c,j) = 1.0_r8
                      end if
-                     if (nu_com .eq. 'MIC') sminn_to_plant_vr(c,j) = max( 0._r8,(sminn_vr(c,j)/dt) - actual_immob_vr(c,j))
+                     if (nu_com .eq. 'MIC') sminn_to_plant_vr(c,j) = min( max( 0._r8, &
+                                                (sminn_vr(c,j)/dt) - actual_immob_vr(c,j)) , col_plant_ndemand_vr(c,j))
                   end if
                end do
             end do
@@ -1604,12 +1605,11 @@ contains
                      if (potential_immob_p_vr(c,j) > 0.0_r8) then
                         fpi_p_vr(c,j) = actual_immob_p_vr(c,j) / potential_immob_p_vr(c,j)
                      else
-                        fpi_p_vr(c,j) = 0.0_r8
+                        fpi_p_vr(c,j) = 1.0_r8
                      end if
 
-                     if (nu_com .eq. 'MIC') sminp_to_plant_vr(c,j) = max( 0._r8, &
-                                            (solutionp_vr(c,j)/dt) - actual_immob_p_vr(c,j) - adsorb_to_labilep_vr(c,j) )
-                     
+                     if (nu_com .eq. 'MIC') sminp_to_plant_vr(c,j) = min(max( 0._r8, &
+                                            (solutionp_vr(c,j)/dt) - actual_immob_p_vr(c,j) - adsorb_to_labilep_vr(c,j) ), col_plant_pdemand_vr(c,j)) 
                   end if
 
                end do
@@ -2124,11 +2124,11 @@ contains
                      if (potential_immob_vr(c,j) > 0.0_r8) then
                         fpi_nh4_vr(c,j) = actual_immob_nh4_vr(c,j) / potential_immob_vr(c,j)
                      else
-                        fpi_nh4_vr(c,j) = 0.0_r8
+                        fpi_nh4_vr(c,j) = 1.0_r8
                      end if
 
-                     if (nu_com .eq. 'MIC') smin_nh4_to_plant_vr(c,j) = max( 0._r8, &
-                          (smin_nh4_vr(c,j)/dt) - actual_immob_nh4_vr(c,j) - f_nit_vr(c,j) )
+                     if (nu_com .eq. 'MIC') smin_nh4_to_plant_vr(c,j) = min( max( 0._r8, &
+                          (smin_nh4_vr(c,j)/dt) - actual_immob_nh4_vr(c,j) - f_nit_vr(c,j) ) ,col_plant_nh4demand_vr(c,j) )
 
                   end if
 
@@ -2179,8 +2179,8 @@ contains
                         fpi_no3_vr(c,j) = 0.0_r8
                      end if
 
-                     if (nu_com .eq. 'MIC') smin_no3_to_plant_vr(c,j) = max( 0._r8, &
-                          (smin_no3_vr(c,j)/dt) - actual_immob_no3_vr(c,j) - f_denit_vr(c,j) )
+                     if (nu_com .eq. 'MIC') smin_no3_to_plant_vr(c,j) = min( max( 0._r8, &
+                          (smin_no3_vr(c,j)/dt) - actual_immob_no3_vr(c,j) - f_denit_vr(c,j) ), col_plant_no3demand_vr(c,j))
 
                   end if
                end do
@@ -2417,11 +2417,11 @@ contains
                      if (potential_immob_p_vr(c,j) > 0.0_r8) then
                         fpi_p_vr(c,j) = actual_immob_p_vr(c,j) / potential_immob_p_vr(c,j)
                      else
-                        fpi_p_vr(c,j) = 0.0_r8
+                        fpi_p_vr(c,j) = 1.0_r8
                      end if
 
-                     if (nu_com .eq. 'MIC') sminp_to_plant_vr(c,j) = max( 0._r8, &
-                          solutionp_vr(c,j)/dt - actual_immob_p_vr(c,j) - adsorb_to_labilep_vr(c,j) )
+                     if (nu_com .eq. 'MIC') sminp_to_plant_vr(c,j) = min(max( 0._r8, &
+                          solutionp_vr(c,j)/dt - actual_immob_p_vr(c,j) - adsorb_to_labilep_vr(c,j) ) , col_plant_pdemand_vr(c,j))
 
                   end if
                end do
@@ -3225,8 +3225,8 @@ contains
              sminn_to_npool(p) = sminn_to_plant_patch(p)
              sminp_to_ppool(p) = sminp_to_plant_patch(p)
          
-             plant_nalloc(p) = sminn_to_npool(p) + avail_retransn(p)
-             plant_palloc(p) = sminp_to_ppool(p) + avail_retransp(p)
+             plant_nalloc(p) = sminn_to_npool(p) + retransn_to_npool(p)
+             plant_palloc(p) = sminp_to_ppool(p) + retransp_to_ppool(p)
              plant_calloc(p) = availc(p)
              
              ! here no down-regulation on allocatable C here, NP limitation is implemented in leaf-level NP control on GPP

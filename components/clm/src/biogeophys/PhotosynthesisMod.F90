@@ -458,7 +458,8 @@ contains
                   ! dividing by LAI to convert total leaf nitrogen
                   ! from m2 ground to m2 leaf; dividing by sum_nscaler to
                   ! convert total leaf N to leaf N at canopy top
-                  lnc(p) = (leafn(p) + leafn_storage(p) + leafn_xfer(p)) / (total_lai * sum_nscaler)
+                  lnc(p) = leafn(p) / (total_lai * sum_nscaler)
+                  lnc(p) = min(max(lnc(p),0.0),3.0) ! based on TRY database, doi: 10.1002/ece3.1173
                else                                                                    
                   lnc(p) = 0.0_r8                                                      
                end if
@@ -498,8 +499,10 @@ contains
                      ! dividing by LAI to convert total leaf nitrogen
                      ! from m2 ground to m2 leaf; dividing by sum_nscaler to
                      ! convert total leaf N to leaf N at canopy top
-                     lnc(p) = (leafn(p) + leafn_storage(p) + leafn_xfer(p)) / (total_lai * sum_nscaler)
-                     lpc(p) = (leafp(p) + leafp_storage(p) + leafp_xfer(p)) / (total_lai * sum_nscaler)
+                     lnc(p) = leafn(p) / (total_lai * sum_nscaler)
+                     lpc(p) = leafp(p) / (total_lai * sum_nscaler)
+                     lnc(p) = min(max(lnc(p),0.0),3.0) ! based on TRY database, doi: 10.1002/ece3.1173
+                     lpc(p) = min(max(lpc(p),0.0),0.5) ! based on TRY database, doi: 10.1002/ece3.1173
                   else
                      lnc(p) = 0.0_r8
                      lpc(p) = 0.0_r8
@@ -588,6 +591,7 @@ contains
 
             if (nlevcan == 1) then
                nscaler = vcmaxcint(p)
+               if (nu_com_leaf_physiology) nscaler = 1
             else if (nlevcan > 1) then
                nscaler = exp(-kn(p) * laican)
             end if

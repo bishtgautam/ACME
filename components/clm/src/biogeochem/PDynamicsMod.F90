@@ -598,7 +598,8 @@ contains
     !
     ! !USES:
     use pftvarcon              , only : noveg
-    
+    use clm_varctl             , only : use_century_decomp
+ 
     !
     ! !ARGUMENTS:
     type(bounds_type)          , intent(in)    :: bounds
@@ -616,12 +617,17 @@ contains
     associate(                                                          &
          froot_prof       => cnstate_vars%froot_prof_patch            , & ! fine root vertical profile Zeng, X. 2001. Global vegetation root distribution for land modeling. J. Hydrometeor. 2:525-530
          biochem_pmin_vr  => phosphorusflux_vars%biochem_pmin_vr_col  , &
+         biochem_pmin_ppools_vr_col  => phosphorusflux_vars%biochem_pmin_ppools_vr_col , &
+         decomp_ppools_vr_col        => phosphorusstate_vars%decomp_ppools_vr_col      , &
          pgpp_pleafp      => phosphorusstate_vars%pgpp_pleafp_patch   , &
          pgpp_pleafn      => phosphorusstate_vars%pgpp_pleafn_patch   , &
          vmax_ptase_vr    => ecophyscon%vmax_ptase_vr                 , &
          km_ptase         => ecophyscon%km_ptase                      , &
          lamda_ptase      => ecophyscon%lamda_ptase                     &! critical value of nitrogen cost of phosphatase activity induced phosphorus uptake
          )
+
+    ! set initial values for potential C and N fluxes
+    biochem_pmin_ppools_vr_col(bounds%begc : bounds%endc, :, :) = 0._r8
 
     do j = 1,nlevdecomp
        do fc = 1,num_soilc
@@ -637,6 +643,24 @@ contains
           enddo
        enddo
     enddo    
+
+    if (use_century_decomp) then
+        do j = 1,nlevdecomp
+            do fc = 1,num_soilc
+                c = filter_soilc(fc)
+                biochem_pmin_vr(c,j) = max(min(decomp_ppools_vr_col(c,j,7), biochem_pmin_vr(c,j)), 0.0)
+                biochem_pmin_ppools_vr_col(c,j,7) = biochem_pmin_vr(c,j)
+            end do
+        end do
+    else
+        do j = 1,nlevdecomp
+            do fc = 1,num_soilc
+                c = filter_soilc(fc)
+                biochem_pmin_vr(c,j) = max(min(decomp_ppools_vr_col(c,j,8), biochem_pmin_vr(c,j)), 0.0)
+                biochem_pmin_ppools_vr_col(c,j,8) = biochem_pmin_vr(c,j)
+            end do
+        end do
+    end if
 
   end associate
 

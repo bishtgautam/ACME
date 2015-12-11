@@ -2406,18 +2406,18 @@ contains
                   if (ivt(p) >= npcropmin) then
                      ! this assumes that offset_counter == dt for crops
                      ! if this were ever changed, we'd need to add code to the "else"
-                     leafn_to_litter(p) = min(((1.0_r8 - presharv(ivt(p))) * ((t1 * leafn(p)) + npool_to_leafn(p))),leafn(p))* 0.38_r8 ! 62% N resorption rate; LEONARDUS VERGUTZ 2012 Ecological Monographs 82(2) 205-220.
-                     leafn_to_retransn(p) = min(((1.0_r8 - presharv(ivt(p))) * ((t1 * leafn(p)) + npool_to_leafn(p))),leafn(p))* 0.62_r8
+                     leafn_to_litter(p) = max(min(((1.0_r8 - presharv(ivt(p))) * ((t1 * leafn(p)) + npool_to_leafn(p))),leafn(p)),0.0)* 0.38_r8 ! 62% N resorption rate; LEONARDUS VERGUTZ 2012 Ecological Monographs 82(2) 205-220.
+                     leafn_to_retransn(p) = max(min(((1.0_r8 - presharv(ivt(p))) * ((t1 * leafn(p)) + npool_to_leafn(p))),leafn(p)),0.0)* 0.62_r8
+ 
+                     leafp_to_litter(p) = max(min(((1.0_r8 - presharv(ivt(p))) * ((t1 * leafp(p)) + ppool_to_leafp(p))),leafp(p)),0.0)* 0.35_r8 ! 65% N resorption rate; LEONARDUS VERGUTZ 2012 Ecological Monographs 82(2) 205-220.
+                     leafp_to_retransp(p) = max(min(((1.0_r8 - presharv(ivt(p))) * ((t1 * leafp(p)) + ppool_to_leafp(p))),frootp(p)),0.0)* 0.65_r8
+                         
+                     frootn_to_litter(p) = max(min(t1 * frootn(p) + npool_to_frootn(p),frootn(p)),0.0)
+                     frootp_to_litter(p) = max(min(t1 * frootp(p) + ppool_to_frootp(p),frootp(p)),0.0)
 
-                     leafp_to_litter(p) = min(((1.0_r8 - presharv(ivt(p))) * ((t1 * leafp(p)) + ppool_to_leafp(p))),leafp(p))* 0.35_r8 ! 65% N resorption rate; LEONARDUS VERGUTZ 2012 Ecological Monographs 82(2) 205-220.
-                     leafp_to_retransp(p) = min(((1.0_r8 - presharv(ivt(p))) * ((t1 * leafp(p)) + ppool_to_leafp(p))),frootp(p))* 0.65_r8
-                        
-                     frootn_to_litter(p) = min(t1 * frootn(p) + npool_to_frootn(p),frootn(p))
-                     frootp_to_litter(p) = min(t1 * frootp(p) + ppool_to_frootp(p),frootp(p))
-
-                     livestemn_to_litter(p) = min((1.0_r8 - presharv(ivt(p))) * ((t1 * livestemn(p)) + npool_to_livestemn(p)),livestemn(p))
-                     livestemp_to_litter(p) = min((1.0_r8 - presharv(ivt(p))) * ((t1 * livestemp(p)) + ppool_to_livestemp(p)),livestemp(p))
-                        
+                     livestemn_to_litter(p) = max(min((1.0_r8 - presharv(ivt(p))) * ((t1 * livestemn(p)) + npool_to_livestemn(p)),livestemn(p)),0.0)
+                     livestemp_to_litter(p) = max(min((1.0_r8 - presharv(ivt(p))) * ((t1 * livestemp(p)) + ppool_to_livestemp(p)),livestemp(p)),0.0)
+ 
                      !grainp_to_food(p) = grainc_to_food(p) / graincp(ivt(p))
                   else
                      leafn_to_litter(p)  = (t1 * leafn(p)  + npool_to_leafn(p))*0.38_r8
@@ -2430,13 +2430,13 @@ contains
                   end if
                else
                   t1 = dt * 2.0_r8 / (offset_counter(p) * offset_counter(p))
-                  leafn_to_litter(p)  = min((prev_leafn_to_litter(p)  + t1*(leafn(p)  - prev_leafn_to_litter(p)*offset_counter(p))),leafn(p))*0.38_r8
-                  leafn_to_retransn(p) = min((prev_leafn_to_litter(p)  + t1*(leafn(p)  - prev_leafn_to_litter(p)*offset_counter(p))),leafn(p))*0.62_r8
-                  frootn_to_litter(p) = min(prev_frootn_to_litter(p) + t1*(frootn(p) - prev_frootn_to_litter(p)*offset_counter(p)),frootn(p))
-                  
-                  leafp_to_litter(p)  = min((prev_leafp_to_litter(p)  + t1*(leafp(p)  - prev_leafp_to_litter(p)*offset_counter(p))),leafp(p))*0.35_r8
-                  leafp_to_retransp(p) =min((prev_leafp_to_litter(p)  + t1*(leafp(p)  - prev_leafp_to_litter(p)*offset_counter(p))),leafp(p))*0.65_r8
-                  frootp_to_litter(p) = min(prev_frootp_to_litter(p) + t1*(frootp(p) - prev_frootp_to_litter(p)*offset_counter(p)),frootp(p))
+                  leafn_to_litter(p)  = max(min((prev_leafn_to_litter(p)  + t1*(leafn(p)  - prev_leafn_to_litter(p)*offset_counter(p))),leafn(p)),0.0)*0.38_r8
+                  leafn_to_retransn(p) = max(min((prev_leafn_to_litter(p)  + t1*(leafn(p)  - prev_leafn_to_litter(p)*offset_counter(p))),leafn(p)),0.0)*0.62_r8
+                  frootn_to_litter(p) = max(min(prev_frootn_to_litter(p) + t1*(frootn(p) - prev_frootn_to_litter(p)*offset_counter(p)),frootn(p)),0.0)
+ 
+                  leafp_to_litter(p)  = max(min((prev_leafp_to_litter(p)  + t1*(leafp(p)  - prev_leafp_to_litter(p)*offset_counter(p))),leafp(p)),0.0)*0.35_r8
+                  leafp_to_retransp(p) = max(min((prev_leafp_to_litter(p)  + t1*(leafp(p)  - prev_leafp_to_litter(p)*offset_counter(p))),leafp(p)),0.0)*0.65_r8
+                  frootp_to_litter(p) = max(min(prev_frootp_to_litter(p) + t1*(frootp(p) - prev_frootp_to_litter(p)*offset_counter(p)),frootp(p)),0.0)
                end if
 
                ! save the current litterfall fluxes
