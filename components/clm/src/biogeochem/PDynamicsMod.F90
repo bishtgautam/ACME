@@ -644,26 +644,24 @@ contains
         enddo
     enddo 
     
-    if (use_century_decomp) then
-        do j = 1,nlevdecomp
-            do fc = 1,num_soilc
-                c = filter_soilc(fc)
-                sop_tot = 0._r8
-                do l = 1,ndecomp_pools
-                    sop_tot = sop_tot + decomp_ppools_vr_col(c,j,l)
-                end
-                do l = 1,ndecomp_pools
-                    if (sop_tot > 1e-12) then 
-                        sop_profile(l) = decomp_ppools_vr_col(c,j,l)/sop_tot
-                    else
-                        sop_profile(l) = 0._r8
-                    end if
-                end do
-                biochem_pmin_ppools_vr_col(c,j,l) = max(min(biochem_pmin_vr(c,j) * sop_profile(l), decomp_ppools_vr_col(c,j,l)),0._r8)
+    do j = 1,nlevdecomp
+        do fc = 1,num_soilc
+            c = filter_soilc(fc)
+            sop_tot = 0._r8
+            do l = 1,ndecomp_pools
+                sop_tot = sop_tot + decomp_ppools_vr_col(c,j,l)
+            end
+            do l = 1,ndecomp_pools
+                if (sop_tot > 1e-12) then 
+                    sop_profile(l) = decomp_ppools_vr_col(c,j,l)/sop_tot
+                else
+                    sop_profile(l) = 0._r8
+                end if
             end do
+            biochem_pmin_ppools_vr_col(c,j,l) = max(min(biochem_pmin_vr(c,j) * sop_profile(l), decomp_ppools_vr_col(c,j,l)),0._r8)
         end do
-    end if
-    
+    end do
+ 
     do j = 1,nlevdecomp
         do fc = 1,num_soilc
             c = filter_soilc(fc)
