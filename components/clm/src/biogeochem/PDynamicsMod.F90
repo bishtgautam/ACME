@@ -598,8 +598,7 @@ contains
     !
     ! !USES:
     use pftvarcon              , only : noveg
-    use clm_varctl             , only : use_century_decomp
- 
+    
     !
     ! !ARGUMENTS:
     type(bounds_type)          , intent(in)    :: bounds
@@ -609,63 +608,77 @@ contains
     type(phosphorusstate_type) , intent(inout) :: phosphorusstate_vars
     type(phosphorusflux_type)  , intent(inout) :: phosphorusflux_vars
     !
-    integer  :: c,fc,p,j
+    integer  :: c,fc,p,j,l
     real(r8) :: lamda_up       ! nitrogen cost of phosphorus uptake
-
+    real(r8) :: sop_profile(1:ndecomp_pools)
+    real(r8) :: sop_tot
     !-----------------------------------------------------------------------
 
-    associate(                                                          &
-         froot_prof       => cnstate_vars%froot_prof_patch            , & ! fine root vertical profile Zeng, X. 2001. Global vegetation root distribution for land modeling. J. Hydrometeor. 2:525-530
-         biochem_pmin_vr  => phosphorusflux_vars%biochem_pmin_vr_col  , &
-         biochem_pmin_ppools_vr_col  => phosphorusflux_vars%biochem_pmin_ppools_vr_col , &
-         decomp_ppools_vr_col        => phosphorusstate_vars%decomp_ppools_vr_col      , &
-         pgpp_pleafp      => phosphorusstate_vars%pgpp_pleafp_patch   , &
-         pgpp_pleafn      => phosphorusstate_vars%pgpp_pleafn_patch   , &
-         vmax_ptase_vr    => ecophyscon%vmax_ptase_vr                 , &
-         km_ptase         => ecophyscon%km_ptase                      , &
-         lamda_ptase      => ecophyscon%lamda_ptase                     &! critical value of nitrogen cost of phosphatase activity induced phosphorus uptake
+    associate(                                                              &
+         froot_prof           => cnstate_vars%froot_prof_patch            , & ! fine root vertical profile Zeng, X. 2001. Global vegetation root distribution for land modeling. J. Hydrometeor. 2:525-530
+         biochem_pmin_vr      => phosphorusflux_vars%biochem_pmin_vr_col  , &
+         biochem_pmin_ppools_vr_col  => phosphorusflux_vars%biochem_pmin_ppools_vr_col  ,&
+         pgpp_pleafp          => phosphorusstate_vars%pgpp_pleafp_patch   , &
+         pgpp_pleafn          => phosphorusstate_vars%pgpp_pleafn_patch   , &
+         vmax_ptase_vr        => ecophyscon%vmax_ptase_vr                 , &
+         km_ptase             => ecophyscon%km_ptase                      , &
+         decomp_ppools_vr_col => phosphorusstate_vars%decomp_ppools_vr_col, &
+         lamda_ptase          => ecophyscon%lamda_ptase                     & ! critical value of nitrogen cost of phosphatase activity induced phosphorus uptake
          )
 
     ! set initial values for potential C and N fluxes
     biochem_pmin_ppools_vr_col(bounds%begc : bounds%endc, :, :) = 0._r8
-
+      
     do j = 1,nlevdecomp
-       do fc = 1,num_soilc
-          c = filter_soilc(fc)
-          biochem_pmin_vr(c,j) = 0.0_r8
-          do p = col%pfti(c), col%pftf(c)
-             if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
-                lamda_up = pgpp_pleafp(p)/pgpp_pleafn(p)
-                biochem_pmin_vr(c,j) = biochem_pmin_vr(c,j) + &
-                     vmax_ptase_vr(j) * max(lamda_up - lamda_ptase, 0.0_r8) / &
-                     (km_ptase + lamda_up - lamda_ptase) * froot_prof(p,j) * pft%wtcol(p)
-             end if
-          enddo
-       enddo
-    enddo    
-
+        do fc = 1,num_soilc
+            c = filter_soilc(fc)
+            biochem_pmin_vr(c,j) = 0.0_r8
+            do p = col%pfti(c), col%pftf(c)
+                if (pft%active(p).and. (pft%itype(p) .ne. noveg)) then
+                    lamda_up = pgpp_pleafp(p)/pgpp_pleafn(p)
+                    biochem_pmin_vr(c,j) = biochem_pmin_vr(c,j) + &
+                        vmax_ptase_vr(j) * max(lamda_up - lamda_ptase, 0.0_r8) / &
+                        (km_ptase + lamda_up - lamda_ptase) * froot_prof(p,j) * pft%wtcol(p)
+                end if
+            enddo
+        enddo
+    enddo 
+    
     if (use_century_decomp) then
         do j = 1,nlevdecomp
             do fc = 1,num_soilc
                 c = filter_soilc(fc)
-                biochem_pmin_vr(c,j) = max(min(decomp_ppools_vr_col(c,j,7), biochem_pmin_vr(c,j)), 0.0)
-                biochem_pmin_ppools_vr_col(c,j,7) = biochem_pmin_vr(c,j)
-            end do
-        end do
-    else
-        do j = 1,nlevdecomp
-            do fc = 1,num_soilc
-                c = filter_soilc(fc)
-                biochem_pmin_vr(c,j) = max(min(decomp_ppools_vr_col(c,j,8), biochem_pmin_vr(c,j)), 0.0)
-                biochem_pmin_ppools_vr_col(c,j,8) = biochem_pmin_vr(c,j)
+                sop_tot = 0._r8
+                do l = 1,ndecomp_pools
+                    sop_tot = sop_tot + decomp_ppools_vr_col(c,j,l)
+                end
+                do l = 1,ndecomp_pools
+                    if (sop_tot > 1e-12) then 
+                        sop_profile(l) = decomp_ppools_vr_col(c,j,l)/sop_tot
+                    else
+                        sop_profile(l) = 0._r8
+                    end if
+                end do
+                biochem_pmin_ppools_vr_col(c,j,l) = max(min(biochem_pmin_vr(c,j) * sop_profile(l), decomp_ppools_vr_col(c,j,l)),0._r8)
             end do
         end do
     end if
+    
+    do j = 1,nlevdecomp
+        do fc = 1,num_soilc
+            c = filter_soilc(fc)
+            biochem_pmin_vr(c,j)=0._r8
+            do l = 1, ndecomp_pools
+               biochem_pmin_vr(c,j) = biochem_pmin_vr(c,j)+ &
+                                          biochem_pmin_ppools_vr_col(c,j,l)
+            enddo
+        enddo
+    end do
+    
+    end associate
 
-  end associate
-
-end subroutine PBiochemMin_QZ
-  
+  end subroutine PBiochemMin_QZ
+ 
 end module PDynamicsMod
                
                 
