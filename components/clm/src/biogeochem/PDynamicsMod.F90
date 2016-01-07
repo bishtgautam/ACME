@@ -598,6 +598,7 @@ contains
     !
     ! !USES:
     use pftvarcon              , only : noveg
+    use clm_varpar             , only : ndecomp_pools
     
     !
     ! !ARGUMENTS:
@@ -650,7 +651,7 @@ contains
             sop_tot = 0._r8
             do l = 1,ndecomp_pools
                 sop_tot = sop_tot + decomp_ppools_vr_col(c,j,l)
-            end
+            enddo
             do l = 1,ndecomp_pools
                 if (sop_tot > 1e-12) then 
                     sop_profile(l) = decomp_ppools_vr_col(c,j,l)/sop_tot
