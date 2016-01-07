@@ -42,7 +42,6 @@ module CNAllocationMod
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: readCNAllocParams
   public :: CNAllocationInit         ! Initialization
-!  public :: CNAllocation             ! run method
   !!-----------------------------------------------------------------------------------------------------
   !! CNAllocation is divided into 3 subroutines/phases:
   public :: CNAllocation1_PlantNPDemand     !!Plant N/P Demand;       called in CNEcosystemDynNoLeaching1
@@ -293,7 +292,6 @@ contains
     use clm_varpar       , only: nlevdecomp
     use clm_varcon       , only: nitrif_n2o_loss_frac, secspday
     use clm_varctl       , only: cnallocate_carbon_only_set
-!    use landunit_varcon  , only: istsoil, istcrop
     use clm_time_manager , only: get_step_size, get_curr_date
     !
     ! !ARGUMENTS:
@@ -355,8 +353,6 @@ contains
     real(r8):: cnl,cnfr,cnlw,cndw                                    !C:N ratios for leaf, fine root, and wood
 
     real(r8):: curmr, curmr_ratio                                    !xsmrpool temporary variables
-!    real(r8):: sum_ndemand_vr(bounds%begc:bounds%endc, 1:nlevdecomp) !total column N demand (gN/m3/s) at a given level
-!    real(r8):: sminn_tot(bounds%begc:bounds%endc)
     real(r8):: nuptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
 
     real(r8) f5                                                      !grain allocation parameter
@@ -1037,12 +1033,9 @@ contains
     use shr_sys_mod      , only: shr_sys_flush
     use clm_varctl       , only: iulog,cnallocate_carbon_only,cnallocate_carbonnitrogen_only,&
                                  cnallocate_carbonphosphorus_only
-!    use pftvarcon        , only: npcropmin, declfact, bfact, aleaff, arootf, astemf
-!    use pftvarcon        , only: arooti, fleafi, allconsl, allconss, grperc, grpnow, nsoybean !!
     use pftvarcon        , only: noveg
     use clm_varpar       , only: nlevdecomp
     use clm_varcon       , only: nitrif_n2o_loss_frac, secspday
-!    use landunit_varcon  , only: istsoil, istcrop
     use clm_time_manager , only: get_step_size
     !
     ! !ARGUMENTS:
@@ -1051,14 +1044,9 @@ contains
     integer                  , intent(in)    :: filter_soilc(:)  ! filter for soil columns
     integer                  , intent(in)    :: num_soilp        ! number of soil patches in filter
     integer                  , intent(in)    :: filter_soilp(:)  ! filter for soil patches
-!    type(photosyns_type)     , intent(in)    :: photosyns_vars
-!    type(crop_type)          , intent(in)    :: crop_vars
-!    type(canopystate_type)   , intent(in)    :: canopystate_vars
     type(cnstate_type)       , intent(inout) :: cnstate_vars
     type(carbonstate_type)   , intent(in)    :: carbonstate_vars
     type(carbonflux_type)    , intent(inout) :: carbonflux_vars
-!    type(carbonflux_type)    , intent(inout) :: c13_carbonflux_vars
-!    type(carbonflux_type)    , intent(inout) :: c14_carbonflux_vars
     type(nitrogenstate_type) , intent(inout) :: nitrogenstate_vars
     type(nitrogenflux_type)  , intent(inout) :: nitrogenflux_vars
 !     !!  add phosphorus  -X.YANG
@@ -1243,7 +1231,6 @@ contains
          labilep_vr                   => phosphorusstate_vars%labilep_vr_col                   , &
 
          !!! add phosphorus variables  - X. YANG
-!         sminp_vr                     => phosphorusstate_vars%sminp_vr_col                     , & ! Input:  [real(r8) (:,:) ]  (gP/m3) soil mineral P
          solutionp_vr                 => phosphorusstate_vars%solutionp_vr_col               , & ! Input:  [real(r8) (:,:) ]  (gP/m3) soil mineral P
 
          potential_immob_p            => phosphorusflux_vars%potential_immob_p_col           , & ! Output: [real(r8) (:)   ]
@@ -2837,14 +2824,9 @@ contains
     use shr_sys_mod      , only: shr_sys_flush
     use clm_varctl       , only: iulog,cnallocate_carbon_only,cnallocate_carbonnitrogen_only,&
                                  cnallocate_carbonphosphorus_only
-!    use pftvarcon        , only: npcropmin, declfact, bfact, aleaff, arootf, astemf
-!    use pftvarcon        , only: arooti, fleafi, allconsl, allconss, grperc, grpnow, nsoybean
     use pftvarcon        , only: noveg
     use pftvarcon        , only:  npcropmin, grperc, grpnow
     use clm_varpar       , only:  nlevdecomp !!nlevsoi,
-!    use clm_varcon       , only: nitrif_n2o_loss_frac, secspday
-!    use landunit_varcon  , only: istsoil, istcrop
-!    use clm_time_manager , only: get_step_size
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -2852,8 +2834,6 @@ contains
     integer                  , intent(in)    :: filter_soilc(:)  ! filter for soil columns
     integer                  , intent(in)    :: num_soilp        ! number of soil patches in filter
     integer                  , intent(in)    :: filter_soilp(:)  ! filter for soil patches
-!    type(photosyns_type)     , intent(in)    :: photosyns_vars
-!    type(crop_type)          , intent(in)    :: crop_vars
     type(canopystate_type)   , intent(in)    :: canopystate_vars
     type(cnstate_type)       , intent(inout) :: cnstate_vars
     type(carbonstate_type)   , intent(in)    :: carbonstate_vars
@@ -2871,7 +2851,6 @@ contains
     integer :: c,p,j         !!l,pi,                                   !indices
     integer :: fp                                                    !lake filter pft index
     integer :: fc                                                    !lake filter column index
-!    real(r8):: mr                                                    !maintenance respiration (gC/m2/s)
     real(r8):: f1,f2,f3,f4,f5,g1,g2                                     !allocation parameters
     real(r8):: cnl,cnfr,cnlw,cndw                                    !C:N ratios for leaf, fine root, and wood
     real(r8):: fcur                                                  !fraction of current psn displayed as growth
@@ -2894,7 +2873,6 @@ contains
 
     associate(                                                                                 &
          ivt                          => pft%itype                                           , & ! Input:  [integer  (:) ]  pft vegetation type
-!
          woody                        => ecophyscon%woody                                    , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
          froot_leaf                   => ecophyscon%froot_leaf                               , & ! Input:  [real(r8) (:)   ]  allocation parameter: new fine root C per new leaf C (gC/gC)
          croot_stem                   => ecophyscon%croot_stem                               , & ! Input:  [real(r8) (:)   ]  allocation parameter: new coarse root C per new stem C (gC/gC)
@@ -3020,7 +2998,6 @@ contains
          c14cf => c14_carbonflux_vars  &
          )
 
-!
 !    !-------------------------------------------------------------------
 
       ! debug
@@ -3534,7 +3511,6 @@ contains
 
 !!-------------------------------------------------------------------------------------------------
   subroutine calc_nuptake_prof(bounds, num_soilc, filter_soilc, cnstate_vars, nitrogenstate_vars, nuptake_prof)
-!     use clm_varcon          , only : dzsoi_decomp  !! declared in module CNAllocationMod
     !! bgc interface & pflotran:
     !! nuptake_prof is used in CNAllocation1, 2, 3
     ! !USES:
@@ -3589,8 +3565,6 @@ contains
                else
                   nuptake_prof(c,j) = nfixation_prof(c,j)
                endif
-               !! sum_ndemand_vr will be calculated after calling calc_nuptake_prof
-!                sum_ndemand_vr(c,j) = col_plant_ndemand(c) * nuptake_prof(c,j) + potential_immob_vr(c,j)
             end do
          end do
 
@@ -3600,7 +3574,6 @@ contains
 
 !!-------------------------------------------------------------------------------------------------
   subroutine calc_puptake_prof(bounds, num_soilc, filter_soilc, cnstate_vars, phosphorusstate_vars, puptake_prof)
-!     use clm_varcon          , only : dzsoi_decomp  !! declared in module CNAllocationMod
     !! bgc interface & pflotran:
     !! puptake_prof is used in CNAllocation1, 2, & 3
     ! !USES:
@@ -3648,8 +3621,6 @@ contains
                else
                   puptake_prof(c,j) = nfixation_prof(c,j)      !!!! need modifications !!!!
                endif
-               !! sum_pdemand_vr will be calculated after calling calc_puptake_prof
-!               sum_pdemand_vr(c,j) = col_plant_pdemand(c) * puptake_prof(c,j) + potential_immob_p_vr(c,j)
             end do
          end do
     end associate
