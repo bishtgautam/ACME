@@ -58,12 +58,12 @@ contains
     use surfrdMod        , only: surfrd_get_globmask, surfrd_get_grid, surfrd_get_topo, surfrd_get_data
     use controlMod       , only: control_init, control_print
     use ncdio_pio        , only: ncd_pio_init
-    use initGridCellsMod , only: initGridCells
+    use initGridCellsMod , only: initGridCells, initGhostGridCells
     use ch4varcon        , only: ch4conrd
     use UrbanParamsType  , only: UrbanInput
     use surfrdMod        , only: surfrd_get_grid_conn
     use clm_varctl       , only: lateral_connectivity, domain_decomp_type
-    use decompInitMod    , only: decompInit_lnd_using_gp
+    use decompInitMod    , only: decompInit_lnd_using_gp, decompInit_ghosts
     use domainLateralMod , only: ldomain_lateral, domainlateral_init
     !
     ! !LOCAL VARIABLES:
@@ -225,8 +225,10 @@ contains
 
     if (create_glacier_mec_landunit) then
        call decompInit_clumps(ns, ni, nj, ldomain%glcmask)
+       call decompInit_ghosts(ldomain%glcmask)
     else
        call decompInit_clumps(ns, ni, nj)
+       call decompInit_ghosts()
     endif
 
     ! *** Get ALL processor bounds - for gridcells, landunit, columns and patches ***
@@ -238,16 +240,16 @@ contains
     ! Note that the assumption is made that none of the subgrid initialization
     ! can depend on other elements of the subgrid in the calls below
 
-    call grc%Init (bounds_proc%begg, bounds_proc%endg)
+    call grc%Init (bounds_proc%begg_all, bounds_proc%endg_all)
     ! --ALM-v1: add initialization for topographic unit data types. 
     ! For preliminary testing, use the same dimensions as gridcell (one topounit per gridcell)
     call top_pp%Init (bounds_proc%begg, bounds_proc%endg) ! topology and physical properties
     call top_es%Init (bounds_proc%begg, bounds_proc%endg) ! energy state
     call top_ws%Init (bounds_proc%begg, bounds_proc%endg) ! water state
     ! --end ALM-v1 block
-    call lun%Init (bounds_proc%begl, bounds_proc%endl)
-    call col%Init (bounds_proc%begc, bounds_proc%endc)
-    call pft%Init (bounds_proc%begp, bounds_proc%endp)
+    call lun%Init (bounds_proc%begl_all, bounds_proc%endl_all)
+    call col%Init (bounds_proc%begc_all, bounds_proc%endc_all)
+    call pft%Init (bounds_proc%begp_all, bounds_proc%endp_all)
     if ( use_ed ) then
        call EDpft%Init(bounds_proc)
        call coh%Init(bounds_proc)
@@ -899,6 +901,8 @@ contains
     use shr_infnan_mod         , only : shr_infnan_isnan
     use abortutils             , only : endrun
     use SoilWaterMovementMod   , only : init_vsfm_condition_ids
+    use clm_varctl             , only : lateral_connectivity
+    use initGridCellsMod       , only : initGhostGridCells
 #ifdef USE_PETSC_LIB
     use MultiPhysicsProbVSFM     , only : vsfm_mpp
     use MultiPhysicsProbConstants, only : VAR_MASS
@@ -1097,6 +1101,10 @@ contains
                 'use_vsfm = true but code was not compiled ' // &
                 'using -DUSE_PETSC_LIB')
 #endif
+
+    if (lateral_connectivity) then
+       call initGhostGridCells()
+    endif
 
     call t_stopf('clm_init3')
 
