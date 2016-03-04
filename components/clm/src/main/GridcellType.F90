@@ -43,6 +43,9 @@ module GridcellType
      ! landunit type in the inner loop)
      integer , pointer :: landunit_indices (:,:) 
 
+     real(r8), pointer :: slope_rad        (:)   ! gridcell slope in radians
+     real(r8), pointer :: aspect_rad       (:)   ! gridcell aspect in radians
+
    contains
 
      procedure, public :: Init
@@ -76,6 +79,9 @@ contains
     allocate(this%prev_dayl (begg:endg)) ; this%prev_dayl (:) = nan
 
     allocate(this%landunit_indices(1:max_lunit, begg:endg)); this%landunit_indices(:,:) = ispval
+
+    allocate(this%slope_rad  (begg:endg)) ; this%slope_rad  (:) = nan
+    allocate(this%aspect_rad (begg:endg)) ; this%aspect_rad (:) = nan
 
   end subroutine Init
 
