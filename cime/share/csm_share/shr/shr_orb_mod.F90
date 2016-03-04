@@ -20,6 +20,7 @@ MODULE shr_orb_mod
    public :: shr_orb_params
    public :: shr_orb_decl
    public :: shr_orb_print
+   public :: shr_orb_saz
 
    real   (SHR_KIND_R8),public,parameter :: SHR_ORB_UNDEF_REAL = 1.e36_SHR_KIND_R8 ! undefined real 
    integer(SHR_KIND_IN),public,parameter :: SHR_ORB_UNDEF_INT  = 2000000000        ! undefined int
@@ -788,5 +789,31 @@ SUBROUTINE shr_orb_print( iyear_AD, eccen, obliq, mvelp )
  
 END SUBROUTINE shr_orb_print
 !===============================================================================
+
+real(SHR_KIND_R8) FUNCTION shr_orb_saz(jday,lat,lon,declin)
+
+   !----------------------------------------------------------------------------
+   !
+   ! FUNCTION to return the solar azimuth angle in radians
+   ! Assumes 365.0 days/year.
+   !
+   !----------------------------------------------------------------------------
+
+   real   (SHR_KIND_R8),intent(in) :: jday   ! Julian cal day (1.xx to 365.xx)
+   real   (SHR_KIND_R8),intent(in) :: lat    ! Centered latitude (radians)
+   real   (SHR_KIND_R8),intent(in) :: lon    ! Centered longitude (radians)
+   real   (SHR_KIND_R8),intent(in) :: declin ! Solar declination (radians)
+
+   real   (SHR_KIND_R8) :: omega
+   real   (SHR_KIND_R8) :: num
+   real   (SHR_KIND_R8) :: den
+   !----------------------------------------------------------------------------
+
+   omega       = jday*2.0_SHR_KIND_R8*pi + lon
+   num         = sin(omega)
+   den         = sin(lat)*cos(omega) - tan(declin)*cos(lat)
+   shr_orb_saz = atan(num/den)
+
+END FUNCTION shr_orb_saz
 
 END MODULE shr_orb_mod
