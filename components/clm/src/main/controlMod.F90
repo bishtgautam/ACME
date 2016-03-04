@@ -241,6 +241,10 @@ contains
 
     namelist /clm_inparm/ use_dynroot
 
+    ! topographic effects on shortwave radiation
+    namelist /clm_inparm/ &
+         first_order_topo_effects_on_srad
+
     namelist /clm_inparm / &
          use_vsfm, vsfm_satfunc_type, vsfm_use_dynamic_linesearch
 
@@ -681,6 +685,9 @@ contains
      call mpi_bcast (co2_file,       len(co2_file),       MPI_CHARACTER, 0, mpicom, ier)
      call mpi_bcast (aero_file,      len(aero_file),      MPI_CHARACTER, 0, mpicom, ier)
 
+    ! topographic effects on shortwave radiation variable
+
+    call mpi_bcast (first_order_topo_effects_on_srad, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     ! VSFM variable
 

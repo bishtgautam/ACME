@@ -20,6 +20,7 @@ module atm2lndMod
   use atm2lndType    , only : atm2lnd_type
   use LandunitType   , only : lun                
   use ColumnType     , only : col                
+  use GridCellType   , only : grc
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -28,6 +29,7 @@ module atm2lndMod
   !
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: downscale_forcings           ! Downscale atm forcing fields from gridcell to column
+  public :: topo_effects_on_shortwave    ! Topographic effects of slope + aspect on direct shortwave radiation
   !
   ! !PRIVATE MEMBER FUNCTIONS:
   private :: downscale_longwave          ! Downscale longwave radiation from gridcell to column
@@ -446,5 +448,75 @@ contains
     end associate
 
   end subroutine check_downscale_consistency
+
+  !-----------------------------------------------------------------------
+  subroutine topo_effects_on_shortwave(bounds, atm2lnd_vars, nextsw_cday, declin)
+    !
+    ! !DESCRIPTION:
+    ! Downscale longwave radiation from gridcell to column
+    ! Must be done AFTER temperature downscaling
+    !
+    ! !USES:
+    use domainMod       , only : ldomain
+    use landunit_varcon , only : istice_mec
+    use clm_varcon      , only : lapse_glcmec
+    use clm_varctl      , only : glcmec_downscale_longwave
+    use shr_orb_mod
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)  , intent(in)    :: bounds
+    type(atm2lnd_type) , intent(inout) :: atm2lnd_vars
+    real(r8)           , intent(in)    :: nextsw_cday        ! calendar day at Greenwich (1.00, ..., days/year)
+    real(r8)           , intent(in)    :: declin
+    !
+    ! !LOCAL VARIABLES:
+    integer  :: c,l,g,fc     ! indices
+    real(r8) :: factor
+    real(r8) :: coszen
+    real(r8) :: saz
+    real(r8) :: zen
+
+    character(len=*), parameter :: subname = 'topo_effects_on_shortwave'
+    !-----------------------------------------------------------------------
+
+    associate(&
+         ! Gridcell-level fields:
+         forc_solad_grc     => atm2lnd_vars%forc_solad_grc , &
+         forc_solai_grc     => atm2lnd_vars%forc_solai_grc , &
+         forc_solar_grc     => atm2lnd_vars%forc_solar_grc   &
+
+         )
+
+      ! Initialize column forcing (needs to be done for ALL active columns)
+      do g = bounds%begg, bounds%endg
+
+         ! cosine of solar zenith angle
+         coszen = shr_orb_cosz (nextsw_cday, grc%lat(g), grc%lon(g), declin)
+
+         if (coszen > 0._r8) then
+
+            ! solar zenith angle
+            zen = acos(coszen)
+
+            saz = shr_orb_saz(nextsw_cday, grc%lat(g), grc%lon(g), declin)
+
+            factor = cos(grc%slope_rad(g))*coszen + &
+                     sin(grc%slope_rad(g))*sin(zen)*cos(grc%aspect_rad(g) - saz)
+
+            if (factor < 0._r8) factor = 0._r8
+
+         else
+            factor = 1._r8
+         end if
+
+         forc_solad_grc(g,1) = forc_solad_grc(g,1)*factor
+         forc_solad_grc(g,2) = forc_solad_grc(g,2)*factor
+         forc_solar_grc(g)   = forc_solad_grc(g,1) + forc_solai_grc(g,1) + &
+                               forc_solad_grc(g,2) + forc_solai_grc(g,2)
+      end do
+
+    end associate
+
+  end subroutine topo_effects_on_shortwave
 
 end module atm2lndMod

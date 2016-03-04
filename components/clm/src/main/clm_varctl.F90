@@ -240,6 +240,9 @@ module clm_varctl
 
   ! glacier mask file name (based on glc_grid)
   character(len=fname_len), public :: fglcmask = ' '        
+
+  ! true => account of topographic effects on shortwave radiation
+  logical, public :: first_order_topo_effects_on_srad = .false.
   !
   !----------------------------------------------------------
   ! single column control variables
