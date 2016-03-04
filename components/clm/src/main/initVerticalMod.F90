@@ -23,7 +23,9 @@ module initVerticalMod
   use fileutils      , only : getfil
   use LandunitType   , only : lun                
   use ColumnType     , only : col                
+  use GridcellType   , only : grc
   use ncdio_pio
+  use clm_varctl     , only : first_order_topo_effects_on_srad
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -67,10 +69,12 @@ contains
     real(r8), allocatable :: ziurb_wall(:,:)   ! wall (layer interface)
     real(r8), allocatable :: ziurb_roof(:,:)   ! roof (layer interface)
     real(r8)              :: depthratio        ! ratio of lake depth to standard deep lake depth 
+    integer               :: begg, endg
     integer               :: begc, endc
     integer               :: begl, endl
     !------------------------------------------------------------------------
 
+    begg = bounds%begg; endg= bounds%endg
     begc = bounds%begc; endc= bounds%endc
     begl = bounds%begl; endl= bounds%endl
 
@@ -562,6 +566,33 @@ contains
          col%topo_std(c) = std(g)
       end do
       deallocate(std)
+
+      !-----------------------------------------------
+      ! Read in topographic index and slope
+      !-----------------------------------------------
+      if (first_order_topo_effects_on_srad) then
+         allocate(tslope(bounds%begg:bounds%endg))
+         call ncd_io(ncid=ncid, varname='slope_rad', flag='read', data=tslope, dim1name=grlnd, readvar=readvar)
+         if (.not. readvar) then
+            call shr_sys_abort(' ERROR: slope_rad NOT on surfdata file'//&
+                 errMsg(__FILE__, __LINE__))
+         end if
+         do g = begg,endg
+            grc%slope_rad(g) = tslope(g)
+         end do
+         deallocate(tslope)
+
+         allocate(tslope(bounds%begg:bounds%endg))
+         call ncd_io(ncid=ncid, varname='aspect_rad', flag='read', data=tslope, dim1name=grlnd, readvar=readvar)
+         if (.not. readvar) then
+            call shr_sys_abort(' ERROR: slope_rad NOT on surfdata file'//&
+                 errMsg(__FILE__, __LINE__))
+         end if
+         do g = begg,endg
+            grc%aspect_rad(g) = tslope(g)
+         end do
+         deallocate(tslope)
+      end if
 
       !-----------------------------------------------
       ! SCA shape function defined

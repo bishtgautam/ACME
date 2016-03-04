@@ -72,6 +72,7 @@ module clm_driver
   use EDtypesMod             , only : gridCellEdState
   !
   use atm2lndMod             , only : downscale_forcings
+  use atm2lndMod             , only : topo_effects_on_shortwave
   use lnd2atmMod             , only : lnd2atm
   use lnd2glcMod             , only : lnd2glc_type
   !
@@ -135,6 +136,7 @@ module clm_driver
   use ColumnType             , only : col                
   use PatchType              , only : pft
   use shr_sys_mod            , only : shr_sys_flush
+  use clm_varctl             , only : first_order_topo_effects_on_srad
 
   !!----------------------------------------------------------------------------
   !! bgc interface & pflotran:
@@ -440,6 +442,11 @@ contains
        call downscale_forcings(bounds_clump, &
             filter(nc)%num_do_smb_c, filter(nc)%do_smb_c, &
             atm2lnd_vars)
+
+       if (first_order_topo_effects_on_srad) then
+          call topo_effects_on_shortwave(bounds_clump, &
+               atm2lnd_vars, nextsw_cday, declinp1)
+       end if
 
        call t_stopf('drvinit')
 
