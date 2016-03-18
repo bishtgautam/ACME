@@ -62,6 +62,8 @@ module clm_varpar
 
   integer, parameter :: nsoilorder  =  15     ! number of soil orders
 
+  integer, parameter :: ndir_hrz_angle = 8    ! number of directions for horizon angles
+
   ! constants for decomposition cascade
 
   integer :: i_met_lit 
