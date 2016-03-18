@@ -243,6 +243,7 @@ module clm_varctl
 
   ! true => account of topographic effects on shortwave radiation
   logical, public :: first_order_topo_effects_on_srad = .false.
+  logical, public :: second_order_topo_effects_on_srad = .false.
   !
   !----------------------------------------------------------
   ! single column control variables

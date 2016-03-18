@@ -26,6 +26,8 @@ module initVerticalMod
   use GridcellType   , only : grc
   use ncdio_pio
   use clm_varctl     , only : first_order_topo_effects_on_srad
+  use clm_varctl     , only : second_order_topo_effects_on_srad
+  use clm_varpar     , only : ndir_hrz_angle
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -72,6 +74,7 @@ contains
     integer               :: begg, endg
     integer               :: begc, endc
     integer               :: begl, endl
+    real(r8), pointer     :: hrz_angles(:,:)
     !------------------------------------------------------------------------
 
     begg = bounds%begg; endg= bounds%endg
@@ -592,6 +595,35 @@ contains
             grc%aspect_rad(g) = tslope(g)
          end do
          deallocate(tslope)
+
+         if (second_order_topo_effects_on_srad) then
+
+            ! Read horizon angles
+            call check_dim(ncid, 'ndir', ndir_hrz_angle)
+            allocate(hrz_angles(bounds%begg:bounds%endg,ndir_hrz_angle))
+            call ncd_io(ncid=ncid, varname='horizon_angles', flag='read', &
+                 data=hrz_angles, dim1name=grlnd, readvar=readvar)
+
+            do g = begg,endg
+               grc%hangles_rad(g,:) = hrz_angles(g,:)
+            enddo
+            deallocate(hrz_angles)
+
+            ! Read sky view factor
+            allocate(tslope(bounds%begg:bounds%endg))
+            call ncd_io(ncid=ncid, varname='sky_view_factor', flag='read', &
+                 data=tslope, dim1name=grlnd, readvar=readvar)
+            if (.not. readvar) then
+               call shr_sys_abort(' ERROR: sky_view_factor NOT on surfdata file'//&
+                    errMsg(__FILE__, __LINE__))
+            end if
+            do g = begg,endg
+               grc%sky_view_factor(g) = tslope(g)
+            end do
+            deallocate(tslope)
+
+         endif
+
       end if
 
       !-----------------------------------------------

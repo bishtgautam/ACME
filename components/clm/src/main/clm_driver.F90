@@ -134,6 +134,7 @@ module clm_driver
   use shr_sys_mod            , only : shr_sys_flush
   use shr_log_mod            , only : errMsg => shr_log_errMsg
   use clm_varctl             , only : first_order_topo_effects_on_srad
+  use clm_varctl             , only : second_order_topo_effects_on_srad
 
   !!----------------------------------------------------------------------------
   !! bgc interface & pflotran:
@@ -442,7 +443,8 @@ contains
 
        if (first_order_topo_effects_on_srad) then
           call topo_effects_on_shortwave(bounds_clump, &
-               atm2lnd_vars, nextsw_cday, declinp1)
+               atm2lnd_vars, nextsw_cday, declinp1, &
+               second_order_topo_effects_on_srad)
        end if
 
        call t_stopf('drvinit')
