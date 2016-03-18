@@ -450,7 +450,8 @@ contains
   end subroutine check_downscale_consistency
 
   !-----------------------------------------------------------------------
-  subroutine topo_effects_on_shortwave(bounds, atm2lnd_vars, nextsw_cday, declin)
+  subroutine topo_effects_on_shortwave(bounds, atm2lnd_vars, nextsw_cday, declin, &
+       include_second_order_effects)
     !
     ! !DESCRIPTION:
     ! Downscale longwave radiation from gridcell to column
@@ -462,28 +463,37 @@ contains
     use clm_varcon      , only : lapse_glcmec
     use clm_varctl      , only : glcmec_downscale_longwave
     use shr_orb_mod
+    use shr_const_mod   , only : SHR_CONST_PI
+    use clm_varpar      , only : ndir_hrz_angle
     !
     ! !ARGUMENTS:
     type(bounds_type)  , intent(in)    :: bounds
     type(atm2lnd_type) , intent(inout) :: atm2lnd_vars
     real(r8)           , intent(in)    :: nextsw_cday        ! calendar day at Greenwich (1.00, ..., days/year)
     real(r8)           , intent(in)    :: declin
+    logical            , intent(in)    :: include_second_order_effects
     !
     ! !LOCAL VARIABLES:
     integer  :: c,l,g,fc     ! indices
+    integer  :: dd
     real(r8) :: factor
     real(r8) :: coszen
     real(r8) :: saz
     real(r8) :: zen
+    real(r8) :: horizon_mask
+    real(r8) :: svf
+    real(r8) :: dtheta
+    real(r8) :: hrz_angle_twd_sun
 
     character(len=*), parameter :: subname = 'topo_effects_on_shortwave'
     !-----------------------------------------------------------------------
 
     associate(&
          ! Gridcell-level fields:
-         forc_solad_grc     => atm2lnd_vars%forc_solad_grc , &
-         forc_solai_grc     => atm2lnd_vars%forc_solai_grc , &
-         forc_solar_grc     => atm2lnd_vars%forc_solar_grc   &
+         forc_solad_grc     => atm2lnd_vars%forc_solad_grc                , &
+         forc_solai_grc     => atm2lnd_vars%forc_solai_grc                , &
+         forc_solar_grc     => atm2lnd_vars%forc_solar_grc                , &
+         forc_lwrad_g       => atm2lnd_vars%forc_lwrad_not_downscaled_grc   &
 
          )
 
@@ -505,14 +515,42 @@ contains
 
             if (factor < 0._r8) factor = 0._r8
 
+            horizon_mask = 1._r8
+            svf          = 1._r8
+
+            if (include_second_order_effects) then
+
+               ! Find horizion angle towards the sun
+               dtheta       = 2._r8*SHR_CONST_PI/ndir_hrz_angle
+               do dd = 1, ndir_hrz_angle
+                  hrz_angle_twd_sun = grc%hangles_rad(g,dd)
+                  if (saz < dtheta*(dd-1) + dtheta/2._r8) exit
+               enddo
+
+               ! Check if sun is above horizon angle
+               if (saz < hrz_angle_twd_sun) horizon_mask = 0._r8
+
+               svf = grc%sky_view_factor(g)
+
+            endif
          else
             factor = 1._r8
          end if
 
-         forc_solad_grc(g,1) = forc_solad_grc(g,1)*factor
-         forc_solad_grc(g,2) = forc_solad_grc(g,2)*factor
+         ! scale direct solar radiation: vis & nir
+         forc_solad_grc(g,1) = forc_solad_grc(g,1)*factor*horizon_mask
+         forc_solad_grc(g,2) = forc_solad_grc(g,2)*factor*horizon_mask
+
+         ! scale diffuse solar radiation: vis & nir
+         forc_solai_grc(g,1) = forc_solai_grc(g,1)*svf
+         forc_solai_grc(g,2) = forc_solai_grc(g,2)*svf
+
+         ! scale total solar radiation
          forc_solar_grc(g)   = forc_solad_grc(g,1) + forc_solai_grc(g,1) + &
                                forc_solad_grc(g,2) + forc_solai_grc(g,2)
+
+         ! scale longwave radiation
+         forc_lwrad_g(g) = forc_lwrad_g(g)*svf
       end do
 
     end associate

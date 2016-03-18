@@ -243,7 +243,8 @@ contains
 
     ! topographic effects on shortwave radiation
     namelist /clm_inparm/ &
-         first_order_topo_effects_on_srad
+         first_order_topo_effects_on_srad, &
+         second_order_topo_effects_on_srad
 
     namelist /clm_inparm / &
          use_vsfm, vsfm_satfunc_type, vsfm_use_dynamic_linesearch
@@ -688,6 +689,7 @@ contains
     ! topographic effects on shortwave radiation variable
 
     call mpi_bcast (first_order_topo_effects_on_srad, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (second_order_topo_effects_on_srad, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     ! VSFM variable
 

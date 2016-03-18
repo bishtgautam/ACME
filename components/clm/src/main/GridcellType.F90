@@ -15,6 +15,7 @@ module GridcellType
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
   use landunit_varcon, only : max_lunit
   use clm_varcon     , only : ispval
+  use clm_varpar     , only : ndir_hrz_angle
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -45,6 +46,8 @@ module GridcellType
 
      real(r8), pointer :: slope_rad        (:)   ! gridcell slope in radians
      real(r8), pointer :: aspect_rad       (:)   ! gridcell aspect in radians
+     real(r8), pointer :: sky_view_factor  (:)   ! sky view factor (unitless)
+     real(r8), pointer :: hangles_rad      (:,:) ! horizon angles in radians
 
    contains
 
@@ -80,8 +83,11 @@ contains
 
     allocate(this%landunit_indices(1:max_lunit, begg:endg)); this%landunit_indices(:,:) = ispval
 
-    allocate(this%slope_rad  (begg:endg)) ; this%slope_rad  (:) = nan
-    allocate(this%aspect_rad (begg:endg)) ; this%aspect_rad (:) = nan
+    allocate(this%slope_rad       (begg:endg))                   ; this%slope_rad       (:)   = nan
+    allocate(this%aspect_rad      (begg:endg))                   ; this%aspect_rad      (:)   = nan
+    allocate(this%sky_view_factor (begg:endg))                   ; this%sky_view_factor (:)   = nan
+
+    allocate(this%hangles_rad     (begg:endg, 1:ndir_hrz_angle)) ; this%hangles_rad     (:,:) = nan
 
   end subroutine Init
 
