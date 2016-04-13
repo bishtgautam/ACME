@@ -109,6 +109,7 @@ contains
     use shr_string_mod            , only : shr_string_getParentDir
     use clm_pflotran_interfaceMod , only : clm_pf_readnl
     use betr_initializeMod        , only : betr_readNL
+    use SoilTemperatureMod        , only : init_soil_temperature
     !
     implicit none
     !
@@ -252,6 +253,9 @@ contains
 
     namelist /clm_inparm/ &
        lateral_connectivity, domain_decomp_type
+
+    namelist /clm_inparm/ &
+         use_petsc_thermal_model
 
     ! ----------------------------------------------------------------------
     ! Default values
@@ -414,6 +418,8 @@ contains
     if (use_betr) then
        call betr_readNL( NLFilename )
     endif    
+
+    call init_soil_temperature()
 
     ! ----------------------------------------------------------------------
     ! consistency checks
@@ -728,6 +734,9 @@ contains
     call mpi_bcast (vsfm_satfunc_type, len(vsfm_satfunc_type), MPI_CHARACTER, 0, mpicom, ier)
     call mpi_bcast (vsfm_use_dynamic_linesearch, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (vsfm_lateral_model_type, len(vsfm_lateral_model_type), MPI_CHARACTER, 0, mpicom, ier)
+
+    ! PETSc-based thermal model
+    call mpi_bcast (use_petsc_thermal_model, 1, MPI_LOGICAL, 0, mpicom, ier)
 
   end subroutine control_spmd
 
