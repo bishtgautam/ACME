@@ -1025,6 +1025,7 @@ contains
     PetscErrorCode                :: ierr
 
     call VecCopy(this%soln_prev_clm, this%soln_prev, ierr); CHKERRQ(ierr)
+    call VecCopy(this%soln_prev_clm, this%soln     , ierr); CHKERRQ(ierr)
 
   end subroutine VSFMSPreStepDT
 
