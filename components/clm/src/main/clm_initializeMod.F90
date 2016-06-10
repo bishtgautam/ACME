@@ -119,7 +119,10 @@ contains
     ! Determine clm gridcell decomposition and processor bounds for gridcells
     ! ------------------------------------------------------------------------
 
+    call t_startf('clm_decompInit')
     call decompInit_lnd(ni, nj, amask)
+    call t_stopf('clm_decompInit')
+
     deallocate(amask)
 
     ! *** Get JUST gridcell processor bounds ***
