@@ -503,7 +503,7 @@ contains
          ! cosine of solar zenith angle
          coszen = shr_orb_cosz (nextsw_cday, grc%lat(g), grc%lon(g), declin)
 
-         if (coszen > 0._r8) then
+         if (coszen > 0.001_r8) then
 
             ! solar zenith angle
             zen = acos(coszen)
@@ -512,6 +512,7 @@ contains
 
             factor = cos(grc%slope_rad(g))*coszen + &
                      sin(grc%slope_rad(g))*sin(zen)*cos(grc%aspect_rad(g) - saz)
+            factor = factor/coszen/cos(grc%slope_rad(g))
 
             if (factor < 0._r8) factor = 0._r8
 
@@ -534,7 +535,9 @@ contains
 
             endif
          else
-            factor = 1._r8
+            factor       = 1._r8
+            horizon_mask = 1._r8
+            svf          = 1._r8
          end if
 
          ! scale direct solar radiation: vis & nir
