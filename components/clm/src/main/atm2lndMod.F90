@@ -503,7 +503,7 @@ contains
          ! cosine of solar zenith angle
          coszen = shr_orb_cosz (nextsw_cday, grc%lat(g), grc%lon(g), declin)
 
-         if (coszen > 0.001_r8) then
+         if (coszen > 0.01_r8) then
 
             ! solar zenith angle
             zen = acos(coszen)
