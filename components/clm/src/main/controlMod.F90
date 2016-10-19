@@ -249,7 +249,7 @@ contains
 
     namelist /clm_inparm / &
          use_vsfm, vsfm_satfunc_type, vsfm_use_dynamic_linesearch, &
-         vsfm_lateral_model_type
+         vsfm_lateral_model_type, vsfm_include_seepage_bc
 
     namelist /clm_inparm/ &
        lateral_connectivity, domain_decomp_type
@@ -730,9 +730,11 @@ contains
 
     ! VSFM variable
 
-    call mpi_bcast (use_vsfm, 1, MPI_LOGICAL, 0, mpicom, ier)
-    call mpi_bcast (vsfm_satfunc_type, len(vsfm_satfunc_type), MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (use_vsfm                   , 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (vsfm_use_dynamic_linesearch, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (vsfm_include_seepage_bc    , 1, MPI_LOGICAL, 0, mpicom, ier)
+
+    call mpi_bcast (vsfm_satfunc_type      , len(vsfm_satfunc_type)      , MPI_CHARACTER, 0, mpicom, ier)
     call mpi_bcast (vsfm_lateral_model_type, len(vsfm_lateral_model_type), MPI_CHARACTER, 0, mpicom, ier)
 
     ! PETSc-based thermal model
