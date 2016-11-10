@@ -13,3 +13,6 @@
 	path = components/clm/src/external_models/mpp
 	url = git@github.com:ACME-Climate/mpp.git
 	branch = alm/develop
+[submodule "emi"]
+	path = components/clm/src/external_models/emi
+	url = git@github.com:bishtgautam/emi.git
