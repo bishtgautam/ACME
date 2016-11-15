@@ -904,25 +904,24 @@ contains
     ! CLM initialization - third phase
     !
     ! !USES:
-    use clm_varpar     , only : nlevsoi, nlevgrnd, nlevsno, max_patch_per_col
-    use landunit_varcon, only : istsoil, istcrop, istice_mec, istice_mec
-    use landunit_varcon, only : istice, istdlak, istwet, max_lunit
-    use column_varcon  , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
-    use clm_varctl     , only : use_vsfm, vsfm_use_dynamic_linesearch
-    use clm_varctl     , only : vsfm_include_seepage_bc, vsfm_satfunc_type
-    use clm_varctl     , only : vsfm_lateral_model_type
-    use clm_varctl     , only : use_petsc_thermal_model
-    use clm_varctl     , only : lateral_connectivity
-    use clm_varctl     , only : finidat
-    use decompMod      , only : get_proc_clumps
-    use mpp_varpar     , only : mpp_varpar_init
-    use mpp_varcon     , only : mpp_varcon_init_landunit
-    use mpp_varcon     , only : mpp_varcon_init_column
-    use mpp_varctl     , only : mpp_varctl_init_vsfm
-    use mpp_varctl     , only : mpp_varctl_init_petsc_thermal
-    use mpp_bounds     , only : mpp_bounds_init_proc_bounds
-    use mpp_bounds     , only : mpp_bounds_init_clump
-    use clm_varctl               , only : use_vsfm
+    use clm_varpar               , only : nlevsoi, nlevgrnd, nlevsno, max_patch_per_col
+    use landunit_varcon          , only : istsoil, istcrop, istice_mec, istice_mec
+    use landunit_varcon          , only : istice, istdlak, istwet, max_lunit
+    use column_varcon            , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
+    use clm_varctl               , only : use_vsfm, vsfm_use_dynamic_linesearch
+    use clm_varctl               , only : vsfm_include_seepage_bc, vsfm_satfunc_type
+    use clm_varctl               , only : vsfm_lateral_model_type
+    use clm_varctl               , only : use_petsc_thermal_model
+    use clm_varctl               , only : lateral_connectivity
+    use clm_varctl               , only : finidat
+    use decompMod                , only : get_proc_clumps
+    use mpp_varpar               , only : mpp_varpar_init
+    use mpp_varcon               , only : mpp_varcon_init_landunit
+    use mpp_varcon               , only : mpp_varcon_init_column
+    use mpp_varctl               , only : mpp_varctl_init_vsfm
+    use mpp_varctl               , only : mpp_varctl_init_petsc_thermal
+    use mpp_bounds               , only : mpp_bounds_init_proc_bounds
+    use mpp_bounds               , only : mpp_bounds_init_clump
     use ExternalModelInterfaceMod, only : EMI_Init_EM
     use ExternalModelConstants   , only : EM_ID_VSFM
 
@@ -967,10 +966,14 @@ contains
 
     call mpp_bounds_init_clump(get_proc_clumps())
 
-    call initialize_vsfm()
+    if (use_vsfm) then
+       if (1 == 1) then
+          call EMI_Init_EM(EM_ID_VSFM)
+       else
+          call initialize_vsfm()
+       endif
+    endif
     call initialize_petsc_thermal_model()
-
-    if (use_vsfm) call EMI_Init_EM(EM_ID_VSFM)
 
     call t_stopf('clm_init3')
 
