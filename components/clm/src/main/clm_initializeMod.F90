@@ -1089,7 +1089,7 @@ contains
     endif
 
     if (npes > 1) then
-       if (vsfm_lateral_model_type /= 'none' .or. &
+       if (vsfm_lateral_model_type /= 'none' .and. &
            vsfm_lateral_model_type /= 'source_sink') then
        call endrun(msg='ERROR clm_initializeMod: ' // &
             'For a parallel run, vsfm_lateral_model_type should be ' // &
