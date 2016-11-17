@@ -66,7 +66,7 @@ contains
     use SoilWaterRetentionCurveMod , only : soil_water_retention_curve_type
     use clm_varcon                 , only : denh2o, denice, watmin
     use ColumnType                 , only : col
-    use ExternalModelVSFMConstants , only : EM_VSFM_SOIL_HYDRO_STAGE
+    use ExternalModelConstants     , only : EM_VSFM_SOIL_HYDRO_STAGE
     use ExternalModelConstants     , only : EM_ID_VSFM
     use ExternalModelInterfaceMod  , only : EMI_Driver
     use clm_time_manager           , only : get_step_size, get_nstep
