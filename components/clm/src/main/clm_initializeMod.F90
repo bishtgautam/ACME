@@ -108,7 +108,6 @@ contains
     call landunit_varcon_init()
     call ncd_pio_init()
     call clm_petsc_init()
-    call EMI_Determine_Active_EMs()
 
     if (masterproc) call control_print()
 
@@ -266,6 +265,9 @@ contains
        call EDpft%Init(bounds_proc)
        call coh%Init(bounds_proc)
     end if
+
+    ! Determine the number of active external models.
+    call EMI_Determine_Active_EMs()
 
     ! Build hierarchy and topological info for derived types
     ! This is needed here for the following call to decompInit_glcp
