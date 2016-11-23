@@ -62,6 +62,7 @@ contains
     use initGridCellsMod , only: initGridCells
     use ch4varcon        , only: ch4conrd
     use UrbanParamsType  , only: UrbanInput
+    use ExternalModelInterfaceMod, only : EMI_Determine_Active_EMs
     !
     ! !LOCAL VARIABLES:
     integer           :: ier                     ! error status
@@ -221,6 +222,9 @@ contains
        call coh%Init(bounds_proc)
     end if
 
+    ! Determine the number of active external models.
+    call EMI_Determine_Active_EMs()
+
     ! Build hierarchy and topological info for derived types
     ! This is needed here for the following call to decompInit_glcp
 
@@ -337,6 +341,8 @@ contains
 !    use betr_initializeMod    , only : bgc_reaction
     use tracer_varcon         , only : is_active_betr_bgc    
     use ALMbetrNLMod             , only : betr_namelist_buffer
+    use ExternalModelInterfaceMod, only : EMI_Init_EM
+    use ExternalModelConstants   , only : EM_ID_BETR
     !
     ! !ARGUMENTS    
     implicit none
@@ -850,6 +856,9 @@ contains
        write(iulog,*)
     endif
     call t_stopf('init_wlog')
+
+    ! Initialize EM version of BETR
+    call EMI_Init_EM(EM_ID_BETR)
 
     call t_stopf('clm_init2')
 

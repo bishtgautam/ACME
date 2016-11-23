@@ -175,6 +175,10 @@ contains
     ! the calling tree is given in the description of this module.
     !
     ! !USES:
+    use ExternalModelConstants   , only : EM_ID_BETR
+    use ExternalModelConstants   , only : EM_BETR_BEGIN_MASS_BALANCE_STAGE
+    use ExternalModelConstants   , only : EM_BETR_PRE_DIAG_WATER_FLUX_STAGE
+    use ExternalModelInterfaceMod, only : EMI_Driver
     !
     ! !ARGUMENTS:
     implicit none
@@ -297,9 +301,16 @@ contains
        call get_clump_bounds(nc, bounds_clump)
 
        if (use_betr) then
+#ifdef BETR_VIA_EMI
+          dtime = get_step_size()
+          nstep = get_nstep()
+          call EMI_Driver(em_id = EM_ID_BETR, em_stage = EM_BETR_BEGIN_MASS_BALANCE_STAGE, &
+               clump_rank = nc, dt = dtime, number_step = nstep)
+#else
          dtime=get_step_size(); nstep=get_nstep()
          call ep_betr%SetClock(dtime= dtime, nelapstep=nstep)
          call ep_betr%BeginMassBalanceCheck(bounds_clump)
+#endif
        endif
        
        if (use_cn) then
@@ -577,8 +588,16 @@ contains
        ! Determine temperatures
        ! ============================================================================
        if(use_betr)then
+#ifdef BETR_VIA_EMI
+          call EMI_Driver(em_id = EM_ID_BETR, em_stage = EM_BETR_PRE_DIAG_WATER_FLUX_STAGE, &
+                  clump_rank = nc, dt = dtime, number_step = nstep, &
+                  num_nolakec = filter(nc)%num_nolakec, &
+                  filter_nolakec = filter(nc)%nolakec, &
+                  waterstate_vars = waterstate_vars)
+#else
          call ep_betr%BeTRSetBiophysForcing(bounds_clump, col, pft, 1, nlevsoi, waterstate_vars=waterstate_vars)
          call ep_betr%PreDiagSoilColWaterFlux(filter(nc)%num_nolakec , filter(nc)%nolakec)
+#endif
        endif
        ! Set lake temperature 
 
