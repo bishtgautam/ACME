@@ -65,6 +65,7 @@ contains
     use clm_varctl       , only: lateral_connectivity, domain_decomp_type
     use decompInitMod    , only: decompInit_lnd_using_gp, decompInit_ghosts
     use domainLateralMod , only: ldomain_lateral, domainlateral_init
+    use SoilTemperatureMod, only : init_soil_temperature
     use ExternalModelInterfaceMod, only : EMI_Determine_Active_EMs
     !
     ! !LOCAL VARIABLES:
@@ -108,6 +109,7 @@ contains
     call landunit_varcon_init()
     call ncd_pio_init()
     call clm_petsc_init()
+    call init_soil_temperature()
 
     if (masterproc) call control_print()
 
@@ -926,6 +928,7 @@ contains
     use mpp_bounds               , only : mpp_bounds_init_clump
     use ExternalModelInterfaceMod, only : EMI_Init_EM
     use ExternalModelConstants   , only : EM_ID_VSFM
+    use ExternalModelConstants   , only : EM_ID_PTM
 
     implicit none
 
@@ -974,6 +977,10 @@ contains
        else
           call initialize_vsfm()
        endif
+    endif
+
+    if (use_petsc_thermal_model) then
+       call EMI_Init_EM(EM_ID_PTM)
     endif
     call initialize_petsc_thermal_model()
 

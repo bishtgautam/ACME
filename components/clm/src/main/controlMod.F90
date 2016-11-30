@@ -109,7 +109,6 @@ contains
     use shr_string_mod            , only : shr_string_getParentDir
     use clm_pflotran_interfaceMod , only : clm_pf_readnl
     use betr_initializeMod        , only : betr_readNL
-    use SoilTemperatureMod        , only : init_soil_temperature
     !
     implicit none
     !
@@ -418,8 +417,6 @@ contains
     if (use_betr) then
        call betr_readNL( NLFilename )
     endif    
-
-    call init_soil_temperature()
 
     ! ----------------------------------------------------------------------
     ! consistency checks

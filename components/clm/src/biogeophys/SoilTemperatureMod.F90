@@ -166,6 +166,9 @@ contains
 #ifdef USE_PETSC_LIB
     use MPPThermalTBasedALM_Driver, only : MPPThermalTBasedALM_Solve
 #endif
+    use ExternalModelConstants     , only : EM_ID_PTM
+    use ExternalModelConstants     , only : EM_PTM_TBASED_SOLVE_STAGE
+    use ExternalModelInterfaceMod  , only : EMI_Driver
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds                     
@@ -461,18 +464,40 @@ contains
 
       case (petsc_thermal_model)
 #ifdef USE_PETSC_LIB
-         call MPPThermalTBasedALM_Solve(bounds,       &
-              num_nolakec_and_nourbanc,               &
-              filter_nolakec_and_nourbanc,            &
-              dtime,                                  &
-              sabg_lyr_col (begc:endc, -nlevsno+1: ), &
-              dhsdT( begc:endc ),                     &
-              hs_soil( begc:endc ),                   &
-              hs_top_snow( begc:endc ),               &
-              hs_h2osfc( begc:endc ),                 &
-              waterstate_vars,                        &
-              temperature_vars,                       &
-              tvector_nourbanc( begc:endc, -nlevsno: ))
+         if (1 == 1) then
+            call Prepare_Data_for_EM_PTM_Driver(bounds, &
+                 num_nolakec_and_nourbanc,              &
+                 filter_nolakec_and_nourbanc,           &
+                 sabg_lyr_col(begc:endc, -nlevsno+1:),  &
+                 dhsdT( begc:endc ),                    &
+                 hs_soil( begc:endc ),                  &
+                 hs_top_snow( begc:endc ),              &
+                 hs_h2osfc( begc:endc ),                &
+                 energyflux_vars                        &
+                 )
+
+            call EMI_Driver(EM_ID_PTM,                                      &
+                 EM_PTM_TBASED_SOLVE_STAGE,                                 &
+                 dt = get_step_size()*1.0_r8,                               &
+                 num_nolakec_and_nourbanc = num_nolakec_and_nourbanc,       &
+                 filter_nolakec_and_nourbanc = filter_nolakec_and_nourbanc, &
+                 waterstate_vars = waterstate_vars,                         &
+                 energyflux_vars = energyflux_vars,                         &
+                 temperature_vars = temperature_vars)
+         else
+            call MPPThermalTBasedALM_Solve(bounds,       &
+                 num_nolakec_and_nourbanc,               &
+                 filter_nolakec_and_nourbanc,            &
+                 dtime,                                  &
+                 sabg_lyr_col (begc:endc, -nlevsno+1: ), &
+                 dhsdT( begc:endc ),                     &
+                 hs_soil( begc:endc ),                   &
+                 hs_top_snow( begc:endc ),               &
+                 hs_h2osfc( begc:endc ),                 &
+                 waterstate_vars,                        &
+                 temperature_vars,                       &
+                 tvector_nourbanc( begc:endc, -nlevsno: ))
+         endif
 #endif         
       end select
 
@@ -524,6 +549,7 @@ contains
 
          else
 
+            if (1 == 0) then
             do j = snl(c)+1, 0
                t_soisno(c,j)       = tvector_nourbanc(c,j-1)        !snow layers
             end do
@@ -533,6 +559,7 @@ contains
                t_h2osfc(c)         = t_soisno(c,1)
             else
                t_h2osfc(c)         = tvector_nourbanc(c,0)          !surface water
+            endif
             endif
 
          endif
@@ -4913,6 +4940,59 @@ end subroutine SolveTemperature
     enddo
 
   end subroutine SetMatrix_Soil_StandingSurfaceWater
+
+  !-----------------------------------------------------------------------
+  subroutine Prepare_Data_for_EM_PTM_Driver(bounds, num_filter, filter, &
+       sabg_lyr, dhsdT, hs_soil, hs_top_snow, hs_h2osfc, &
+       energyflux_vars)
+    !
+    ! !DESCRIPTION:
+    ! Prepare data needed for the external model, PETSc-based Thermal
+    ! Model (PTM).
+    !
+    ! !USES:
+    use shr_kind_mod    , only : r8 => shr_kind_r8
+    use TemperatureType , only : temperature_type
+    use clm_varpar      , only : nlevsno
+    !
+    implicit none
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)      , intent(in)    :: bounds
+    integer                , intent(in)    :: num_filter                                         ! number of columns in the filter
+    integer                , intent(in)    :: filter(:)                                          ! column filter
+    real(r8)               , intent(in)    :: sabg_lyr(bounds%begc:bounds%endc,-nlevsno+1:1)     ! absorbed solar radiation (col,lyr) [W/m2]
+    real(r8)               , intent(in)    :: dhsdT(bounds%begc:bounds%endc)                     ! temperature derivative of "hs" [col]
+    real(r8)               , intent(in)    :: hs_soil(bounds%begc:bounds%endc)                   ! heat flux on soil [W/m2]
+    real(r8)               , intent(in)    :: hs_top_snow(bounds%begc:bounds%endc)               ! heat flux on top snow layer [W/m2]
+    real(r8)               , intent(in)    :: hs_h2osfc(bounds%begc:bounds%endc)                 ! heat flux on standing water [W/m2]
+    type(energyflux_type)  , intent(inout) :: energyflux_vars
+    !
+    ! !LOCAL VARIABLES:
+    integer                                :: c, j
+
+    associate(                                                      &
+         eflx_sabg_lyr    => energyflux_vars%eflx_sabg_lyr_col,     &
+         eflx_dhsdT       => energyflux_vars%eflx_dhsdT_col ,       &
+         eflx_hs_soil     => energyflux_vars%eflx_hs_soil_col ,     &
+         eflx_hs_top_snow => energyflux_vars%eflx_hs_top_snow_col , &
+         eflx_hs_h2osfc   => energyflux_vars%eflx_hs_h2osfc_col     &
+         )
+
+      do c = bounds%begc, bounds%endc
+         do j = -nlevsno+1, 1
+            eflx_sabg_lyr(c,j)  = sabg_lyr(c,j)
+         enddo
+
+         eflx_dhsdT(c)       = dhsdT(c)
+         eflx_hs_soil(c)     = hs_soil(c)
+         eflx_hs_top_snow(c) = hs_top_snow(c)
+         eflx_hs_h2osfc(c)   = hs_h2osfc(c)
+      enddo
+
+    end associate
+
+  end subroutine Prepare_Data_for_EM_PTM_Driver
 
 end module SoilTemperatureMod
 
