@@ -980,9 +980,12 @@ contains
     endif
 
     if (use_petsc_thermal_model) then
-       call EMI_Init_EM(EM_ID_PTM)
+       if (1 == 1) then
+          call EMI_Init_EM(EM_ID_PTM)
+       else
+          call initialize_petsc_thermal_model()
+       endif
     endif
-    call initialize_petsc_thermal_model()
 
     call t_stopf('clm_init3')
 
