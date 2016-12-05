@@ -658,6 +658,7 @@ sub write_filepath_cesmbld
                      "biogeophys/vsfm",
 		     "biogeochem", 
 		     "dyn_subgrid",
+                     "external_models/emi/src/",
 		     "ED", 
 		     "ED/main", 
 		     "ED/biogeophys", 
