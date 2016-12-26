@@ -259,6 +259,7 @@ contains
     real(r8) ,pointer  :: zisoifl    (:)   ! original soil interface depth 
     real(r8) ,pointer  :: zsoifl     (:)   ! original soil midpoint 
     real(r8) ,pointer  :: dzsoifl    (:)   ! original soil thickness 
+    real(r8) ,pointer  :: fdrain2d   (:)   ! top-model drainage parameter
     !-----------------------------------------------------------------------
 
     ! -----------------------------------------------------------------
@@ -487,6 +488,15 @@ contains
 
     end if ! end of if use_vichydro
 
+    allocate(fdrain2d(bounds%begg:bounds%endg))
+    call getfil (fsurdat, locfn, 0)
+    call ncd_pio_openfile (ncid, locfn, 0)
+    call ncd_io(ncid=ncid, varname='fdrain', flag='read', data=fdrain2d, dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) then
+       fdrain2d(:) = 2.5_r8
+    end if
+    call ncd_pio_closefile(ncid)
+
     associate(micro_sigma => col%micro_sigma)
       do c = bounds%begc, bounds%endc
          
@@ -513,10 +523,12 @@ contains
          endif
 
          ! set decay factor
-         this%hkdepth_col(c) = 1._r8/2.5_r8
+         g = col%gridcell(c)
+         this%hkdepth_col(c) = 1._r8/fdrain2d(g)
 
       end do
     end associate
+    deallocate(fdrain2d)
 
   end subroutine InitCold
 
