@@ -218,6 +218,7 @@ contains
     use shr_log_mod     , only : errMsg => shr_log_errMsg
     use shr_spfn_mod    , only : shr_spfn_erf
     use shr_kind_mod    , only : r8 => shr_kind_r8
+    use shr_infnan_mod  , only : isnan => shr_infnan_isnan, nan => shr_infnan_nan, assignment(=)
     use clm_varctl      , only : fsurdat, iulog, use_vichydro
     use clm_varpar      , only : nlevsoi, nlevgrnd, nlevsno, nlevlak, nlevurb
     use clm_varcon      , only : denice, denh2o, sb, bdsno 
@@ -260,7 +261,20 @@ contains
     real(r8) ,pointer  :: zsoifl     (:)   ! original soil midpoint 
     real(r8) ,pointer  :: dzsoifl    (:)   ! original soil thickness 
     real(r8) ,pointer  :: fdrain2d   (:)   ! top-model drainage parameter
+    real(r8) ,pointer  :: zwt_init   (:)   ! top-model drainage parameter
+    logical            :: zwt_init_present ! flat
     !-----------------------------------------------------------------------
+
+    ! -----------------------------------------------------------------
+    ! Read initial condition for water table depth
+    ! -----------------------------------------------------------------
+    zwt_init_present = .false.
+    allocate(zwt_init(bounds%begg:bounds%endg))
+    call getfil (fsurdat, locfn, 0)
+    call ncd_pio_openfile (ncid, locfn, 0)
+    call ncd_io(ncid=ncid, varname='zwt_initial', flag='read', data=zwt_init, dim1name=grlnd, readvar=readvar)
+    if (readvar) zwt_init_present = .true.
+    call ncd_pio_closefile(ncid)
 
     ! -----------------------------------------------------------------
     ! Initialize frost table
@@ -271,11 +285,16 @@ contains
 
     do c = bounds%begc,bounds%endc
        l = col%landunit(c)
+       g = col%gridcell(c)
        if (.not. lun%lakpoi(l)) then  !not lake
           if (lun%urbpoi(l)) then
              if (col%itype(c) == icol_road_perv) then
                 this%wa_col(c)  = 4800._r8
                 this%zwt_col(c) = (25._r8 + col%zi(c,nlevsoi)) - this%wa_col(c)/0.2_r8 /1000._r8  ! One meter below soil column
+                if (zwt_init_present .and. .not.(isnan(zwt_init(g)))) then
+                   this%zwt_col(c) = zwt_init(g)
+                   this%wa_col(c)  = (25._r8 + col%zi(c,nlevsoi)) - this%zwt_col(c)*0.2_r8*1000._r8
+                endif
              else
                 this%wa_col(c)  = spval
                 this%zwt_col(c) = spval
@@ -286,12 +305,17 @@ contains
           else
              this%wa_col(c)  = 4000._r8
              this%zwt_col(c) = (25._r8 + col%zi(c,nlevsoi)) - this%wa_col(c)/0.2_r8 /1000._r8  ! One meter below soil column
+             if (zwt_init_present .and. .not.(isnan(zwt_init(g)))) then
+                this%zwt_col(c) = zwt_init(g)
+                this%wa_col(c)  = (25._r8 + col%zi(c,nlevsoi)) - this%zwt_col(c)*0.2_r8*1000._r8
+             endif
              ! initialize frost_table, zwt_perched to bottom of soil column
              this%zwt_perched_col(c) = col%zi(c,nlevsoi)
              this%frost_table_col(c) = col%zi(c,nlevsoi)
           end if
        end if
     end do
+    deallocate(zwt_init)
 
     ! Initialize VIC variables
 
