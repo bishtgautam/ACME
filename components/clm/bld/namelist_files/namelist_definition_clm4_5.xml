@@ -1639,6 +1639,12 @@ Type of lateral flow formulation supported in VSFM.
 Runtime flag to add seepage boundary condition on the top soil layer to allow for exfiltration.
 </entry>
 
+<entry id="use_vsfm_spac" type="logical" category="default_settings"
+        group="clm_inparm" valid_values="">
+Runtime flag to turn on/off VSFM-SPAC.
+</entry>
+
+
 <!-- ========================================================================================  -->
 <!-- Namelist options related to PETSc-based thermal model                                     -->
 <!-- ========================================================================================  -->

@@ -308,6 +308,7 @@ module clm_varctl
   logical          , public :: vsfm_include_seepage_bc     = .false.
   character(len=32), public :: vsfm_satfunc_type           = 'smooth_brooks_corey_bz3'
   character(len=32), public :: vsfm_lateral_model_type     = 'none'
+  logical          , public :: use_vsfm_spac               = .false.
 
   !----------------------------------------------------------
   ! PETSc-based thermal model switches

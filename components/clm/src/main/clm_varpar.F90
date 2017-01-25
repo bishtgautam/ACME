@@ -10,6 +10,7 @@ module clm_varpar
   use clm_varctl   , only: use_century_decomp, use_c13, use_c14
   use clm_varctl   , only: iulog, create_crop_landunit, irrigate, flanduse_timeseries
   use clm_varctl   , only: use_vichydro
+  use clm_varctl   , only: use_vsfm_spac
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -151,6 +152,8 @@ contains
        nlevsoi     =  8  + nlev_equalspace
        nlevgrnd    =  15 + nlev_equalspace
     end if
+
+    if (use_vsfm_spac) nlevgrnd = 50
 
     if (use_vichydro) then
        nlayert     =  nlayer + (nlevgrnd -nlevsoi)

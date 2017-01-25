@@ -15,7 +15,8 @@ module SoilWaterMovementMod
   !
   ! !PRIVATE DATA MEMBERS:
   integer, parameter :: zengdecker_2009 = 0
-  integer, parameter :: vsfm = 1
+  integer, parameter :: vsfm      = 1
+  integer, parameter :: vsfm_spac = 2
   integer :: soilroot_water_method     !0: use the Zeng and deck method, this will be readin from namelist in the future
 
   !-----------------------------------------------------------------------
@@ -29,6 +30,7 @@ contains
     !specify method for doing soil&root water interactions
     !
     use clm_varctl, only : use_vsfm
+    use clm_varctl, only : use_vsfm_spac
     use spmdMod,    only : mpicom, MPI_LOGICAL
     ! !ARGUMENTS:
     implicit none
@@ -40,7 +42,9 @@ contains
     ! GB-FIX-ME: The call to control_spmd() [in subroutine control_init()] before
     !            call to init_hydrology() would avoid the mpi broadcast
     call mpi_bcast (use_vsfm, 1, MPI_LOGICAL, 0, mpicom, ier)
-    if (use_vsfm) soilroot_water_method = vsfm
+    call mpi_bcast (use_vsfm_spac, 1, MPI_LOGICAL, 0, mpicom, ier)
+    if (use_vsfm     ) soilroot_water_method = vsfm
+    if (use_vsfm_spac) soilroot_water_method = vsfm_spac
 
   end subroutine init_soilwater_movement
 
@@ -68,6 +72,7 @@ contains
     use ColumnType                 , only : col
     use ExternalModelConstants     , only : EM_VSFM_SOIL_HYDRO_STAGE
     use ExternalModelConstants     , only : EM_ID_VSFM
+    use ExternalModelConstants     , only : EM_ID_VSFM_SPAC
     use ExternalModelInterfaceMod  , only : EMI_Driver
     use clm_time_manager           , only : get_step_size, get_nstep
 #ifdef USE_PETSC_LIB
@@ -133,6 +138,22 @@ contains
             waterflux_vars, waterstate_vars, temperature_vars)
        endif
 #endif
+
+    case (vsfm_spac)
+#ifdef USE_PETSC_LIB
+
+       call Prepare_Data_for_EM_VSFM_Driver(bounds, num_hydrologyc, filter_hydrologyc, &
+            soilhydrology_vars, soilstate_vars, &
+            waterflux_vars, waterstate_vars, temperature_vars)
+
+       call EMI_Driver(EM_ID_VSFM_SPAC, EM_VSFM_SOIL_HYDRO_STAGE, dt = get_step_size()*1.0_r8, &
+            number_step = get_nstep(), &
+            num_hydrologyc=num_hydrologyc, filter_hydrologyc=filter_hydrologyc, &
+            soilhydrology_vars=soilhydrology_vars, soilstate_vars=soilstate_vars, &
+            waterflux_vars=waterflux_vars, waterstate_vars=waterstate_vars, &
+            temperature_vars=temperature_vars)
+#endif
+
     case default
 
        call endrun(subname // ':: a SoilWater implementation must be specified!')          

@@ -530,6 +530,7 @@ contains
      use clm_varpar       , only : nlevsoi
      use column_varcon    , only : icol_roof, icol_road_imperv
      use clm_varctl       , only : use_vsfm
+     use clm_varctl       , only : use_vsfm_spac
      !
      ! !ARGUMENTS:
      type(bounds_type)        , intent(in)    :: bounds  
@@ -631,7 +632,7 @@ contains
           end do
        end do
 
-       if (.not.use_vsfm) then
+       if (.not. (use_vsfm .or. use_vsfm_spac)) then
           do fc = 1, num_hydrologyc
              c = filter_hydrologyc(fc)
              qflx_drain(c)    = 0._r8
@@ -795,7 +796,7 @@ contains
           if (snl(c)+1 >= 1) then
 
              ! make consistent with how evap_grnd removed in infiltration
-             if (.not.use_vsfm) then
+             if (.not.(use_vsfm .or. use_vsfm_spac)) then
                 h2osoi_liq(c,1) = h2osoi_liq(c,1) + (1._r8 - frac_h2osfc(c))*qflx_dew_grnd(c) * dtime
                 h2osoi_ice(c,1) = h2osoi_ice(c,1) + (1._r8 - frac_h2osfc(c))*qflx_dew_snow(c) * dtime
                 if (qflx_sub_snow(c)*dtime > h2osoi_ice(c,1)) then
@@ -846,6 +847,7 @@ contains
      use column_varcon    , only : icol_roof, icol_road_imperv, icol_road_perv
      use abortutils       , only : endrun
      use clm_varctl       , only : use_vsfm
+     use clm_varctl       , only : use_vsfm_spac
      !
      ! !ARGUMENTS:
      type(bounds_type)        , intent(in)    :: bounds               
@@ -1059,7 +1061,7 @@ contains
              do k = jwt(c)+1, k_frz
                 rsub_top_layer=max(rsub_top_tot,-(h2osoi_liq(c,k)-watmin))
                 rsub_top_layer=min(rsub_top_layer,0._r8)
-                if (use_vsfm) then
+                if (use_vsfm .or. use_vsfm_spac) then
                    rsub_top_layer = 0._r8
                 endif
                 rsub_top_tot = rsub_top_tot - rsub_top_layer
@@ -1141,7 +1143,7 @@ contains
                 do k = k_perch+1, k_frz
                    rsub_top_layer=max(rsub_top_tot,-(h2osoi_liq(c,k)-watmin))
                    rsub_top_layer=min(rsub_top_layer,0._r8)
-                   if (use_vsfm) rsub_top_layer = 0._r8
+                   if (use_vsfm .or. use_vsfm_spac) rsub_top_layer = 0._r8
                    rsub_top_tot = rsub_top_tot - rsub_top_layer
 
                    h2osoi_liq(c,k) = h2osoi_liq(c,k) + rsub_top_layer
@@ -1209,7 +1211,7 @@ contains
                 rsub_top(c)    = imped * rsub_top_max* exp(-fff(c)*zwt(c))
              end if
 
-             if (use_vsfm) rsub_top(c) = 0._r8
+             if (use_vsfm .or. use_vsfm_spac) rsub_top(c) = 0._r8
 
              ! use analytical expression for aquifer specific yield
              rous = watsat(c,nlevsoi) &
@@ -1242,7 +1244,7 @@ contains
                       do j = (nlvic(1)+nlvic(2)+1), nlevsoi
                          rsub_top_layer=max(rsub_top_tot, rsub_top_tot*hk_l(c,j)*dzmm(c,j)/wtsub_vic)
                          rsub_top_layer=min(rsub_top_layer,0._r8)
-                         if (use_vsfm) rsub_top_layer = 0._r8
+                         if (use_vsfm .or. use_vsfm_spac) rsub_top_layer = 0._r8
                          h2osoi_liq(c,j) = h2osoi_liq(c,j) + rsub_top_layer
                          rsub_top_tot = rsub_top_tot - rsub_top_layer
                       end do
@@ -1255,7 +1257,7 @@ contains
 
                          rsub_top_layer=max(rsub_top_tot,-(s_y*(zi(c,j) - zwt(c))*1.e3))
                          rsub_top_layer=min(rsub_top_layer,0._r8)
-                         if (use_vsfm) rsub_top_layer = 0._r8
+                         if (use_vsfm .or. use_vsfm_spac) rsub_top_layer = 0._r8
                          h2osoi_liq(c,j) = h2osoi_liq(c,j) + rsub_top_layer
 
                          rsub_top_tot = rsub_top_tot - rsub_top_layer
@@ -1300,7 +1302,7 @@ contains
           do fc = 1, num_hydrologyc
              c = filter_hydrologyc(fc)
              xsi(c)            = max(h2osoi_liq(c,j)-eff_porosity(c,j)*dzmm(c,j),0._r8)
-             if (use_vsfm) then
+             if (use_vsfm .or. use_vsfm_spac) then
                 xsi(c) = 0._r8
              else
                 h2osoi_liq(c,j)   = min(eff_porosity(c,j)*dzmm(c,j), h2osoi_liq(c,j))
@@ -1315,7 +1317,7 @@ contains
           !scs: watmin addition to fix water balance errors
           xs1(c)          = max(max(h2osoi_liq(c,1)-watmin,0._r8)- &
                max(0._r8,(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_ice(c,1)-watmin)),0._r8)
-          if (use_vsfm) xs1(c) = 0._r8
+          if (use_vsfm .or. use_vsfm_spac) xs1(c) = 0._r8
           h2osoi_liq(c,1) = h2osoi_liq(c,1) - xs1(c)
 
           if (lun%urbpoi(col%landunit(c))) then
@@ -1331,7 +1333,7 @@ contains
              endif
           endif
 
-          if (use_vsfm) qflx_rsub_sat(c) = 0._r8
+          if (use_vsfm .or. use_vsfm_spac) qflx_rsub_sat(c) = 0._r8
 
           ! add in ice check
           xs1(c)          = max(max(h2osoi_ice(c,1),0._r8)-max(0._r8,(pondmx+watsat(c,1)*dzmm(c,1)-h2osoi_liq(c,1))),0._r8)

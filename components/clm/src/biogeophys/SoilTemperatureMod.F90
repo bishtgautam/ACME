@@ -334,9 +334,10 @@ contains
       end do
 
       !
-      ! Setup two new filters:
+      ! Setup new filters:
       ! - filter_nolakec_and_nourbanc: No Lakes + No Urban columns
       ! - filter_nolakec_and_urbanc  : No Lakes + Urban columns
+      ! - filter_lun                 : Landunit level filter
       !
       num_nolakec_and_nourbanc = 0
       num_nolakec_and_urbanc   = 0
@@ -714,6 +715,7 @@ contains
       ! Free up memory
       deallocate(filter_nolakec_and_nourbanc)
       deallocate(filter_nolakec_and_urbanc  )
+      deallocate(filter_lun                 )
 
     end associate
 

@@ -51,6 +51,7 @@ contains
     use SoilHydrologyMod , only : CLMVICMap, Drainage
     use TracerParamsMod  , only : pre_diagnose_soilcol_water_flux, diagnose_drainage_water_flux    
     use clm_varctl       , only : use_vsfm
+    use clm_varctl       , only : use_vsfm_spac
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds               
@@ -96,6 +97,8 @@ contains
          h2osoi_liq         => waterstate_vars%h2osoi_liq_col        , & ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)                            
          h2osoi_vol         => waterstate_vars%h2osoi_vol_col        , & ! Output: [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
          snow_persistence   => waterstate_vars%snow_persistence_col  , & ! Output: [real(r8) (:)   ]  counter for length of time snow-covered
+         h2oroot_liq        => waterstate_vars%h2oroot_liq_col       , & ! Output: [real(r8) (:,:) ]  root liquid water (kg/m2)
+         h2oxylem_liq       => waterstate_vars%h2oxylem_liq_col      , & ! Output: [real(r8) (:,:) ]  xylem liquid water (kg/m2)
 
          qflx_evap_tot      => waterflux_vars%qflx_evap_tot_col      , & ! Input:  [real(r8) (:)   ]  qflx_evap_soi + qflx_evap_can + qflx_tran_veg     
          qflx_irrig         => waterflux_vars%qflx_irrig_col         , & ! Input:  [real(r8) (:)   ]  irrigation flux (mm H2O /s)                       
@@ -129,7 +132,7 @@ contains
               h2osoi_liq(bounds%begc:bounds%endc, 1:nlevsoi))
       endif
 
-      if (.not. use_vsfm) then
+      if (.not. (use_vsfm .or. use_vsfm_spac) ) then
          call Drainage(bounds, num_hydrologyc, filter_hydrologyc, &
               num_urbanc, filter_urbanc,&
               temperature_vars, soilhydrology_vars, soilstate_vars, &
@@ -176,6 +179,16 @@ contains
                endwb(c) = endwb(c) + h2osoi_ice(c,j) + h2osoi_liq(c,j)
             end if
          end do
+      end do
+
+      do fc = 1, num_nolakec
+         c = filter_nolakec(fc)
+         do j = 1, nlevgrnd
+            endwb(c) = endwb(c) + h2oroot_liq(c,j)
+         enddo
+         do j = 1, 170
+            endwb(c) = endwb(c) + h2oxylem_liq(c,j)
+         enddo
       end do
 
       ! Prior to summing up wetland/ice hydrology, calculate land ice contributions/sinks

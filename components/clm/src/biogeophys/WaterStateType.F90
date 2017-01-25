@@ -53,6 +53,9 @@ module WaterstateType
      real(r8), pointer :: ice1_grc               (:)   ! grc initial gridcell total h2o ice content
      real(r8), pointer :: ice2_grc               (:)   ! grc post land cover change total ice content
      real(r8), pointer :: tws_grc                (:)   ! grc total water storage (mm H2O)
+     real(r8), pointer :: h2oroot_liq_col        (:,:) ! col liquid water in plant root (kg/m2)
+     real(r8), pointer :: h2oxylem_liq_col       (:,:) ! col liquid water in plant xylem (kg/m2)
+     real(r8), pointer :: xylemp_col             (:,:) ! col xylem water pressure (mm)
 
      real(r8), pointer :: snw_rds_col            (:,:) ! col snow grain radius (col,lyr)    [m^-6, microns]
      real(r8), pointer :: snw_rds_top_col        (:)   ! col snow grain radius (top layer)  [m^-6, microns]
@@ -97,7 +100,7 @@ module WaterstateType
      real(r8), pointer :: vsfm_mass_col_1d       (:)   ! liquid mass per unit area from VSFM [kg H2O/m^2]
      real(r8), pointer :: vsfm_smpl_col_1d       (:)   ! 1D soil matrix potential liquid from VSFM [m]
      real(r8), pointer :: vsfm_soilp_col_1d      (:)   ! 1D soil liquid pressure from VSFM [Pa]
-     real(r8), pointer :: soilp_col              (:,:) ! col soil pressure (Pa)
+     real(r8), pointer :: soilp_col              (:,:) ! col soil water pressure (mm)
 
    contains
 
@@ -196,6 +199,9 @@ contains
     allocate(this%ice1_grc               (begg:endg))                     ; this%ice1_grc               (:)   = nan
     allocate(this%ice2_grc               (begg:endg))                     ; this%ice2_grc               (:)   = nan
     allocate(this%tws_grc                (begg:endg))                     ; this%tws_grc                (:)   = nan
+    allocate(this%h2oroot_liq_col        (begc:endc,1:nlevgrnd))          ; this%h2oroot_liq_col        (:,:) = nan
+    allocate(this%h2oxylem_liq_col       (begc:endc,1:170))               ; this%h2oxylem_liq_col       (:,:) = nan
+    allocate(this%xylemp_col             (begc:endc,1:170))               ; this%xylemp_col             (:,:) = nan
 
     allocate(this%snw_rds_col            (begc:endc,-nlevsno+1:0))        ; this%snw_rds_col            (:,:) = nan
     allocate(this%snw_rds_top_col        (begc:endc))                     ; this%snw_rds_top_col        (:)   = nan
@@ -748,6 +754,8 @@ contains
                this%h2osoi_liq_col(c,j) = col%dz(c,j)*denh2o*this%h2osoi_vol_col(c,j)
             endif
          end do
+         this%h2oroot_liq_col(c,:)  = 0._r8
+         this%h2oxylem_liq_col(c,:) = 0._r8
       end do
 
     end associate

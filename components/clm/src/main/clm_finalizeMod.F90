@@ -25,6 +25,7 @@ contains
     !
     ! !USES:
     use clm_varctl             , only : use_vsfm
+    use clm_varctl             , only : use_vsfm_spac
     !
     ! !ARGUMENTS
     implicit none
@@ -36,7 +37,7 @@ contains
 #ifdef USE_PETSC_LIB
     PetscErrorCode        :: ierr
 
-    if (use_vsfm) then
+    if (use_vsfm .or. use_vsfm_spac) then
        call PetscFinalize(ierr)
     endif
 #endif

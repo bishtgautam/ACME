@@ -248,7 +248,7 @@ contains
 
     namelist /clm_inparm / &
          use_vsfm, vsfm_satfunc_type, vsfm_use_dynamic_linesearch, &
-         vsfm_lateral_model_type, vsfm_include_seepage_bc
+         vsfm_lateral_model_type, vsfm_include_seepage_bc, use_vsfm_spac
 
     namelist /clm_inparm/ &
        lateral_connectivity, domain_decomp_type

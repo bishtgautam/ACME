@@ -27,7 +27,10 @@ module SoilMoistStressMod
   !
   ! !PRIVATE DATA MEMBERS:
   integer ::   root_moist_stress_method
+
   integer, parameter :: moist_stress_clm_default  = 0  !default method for calculating root moisture stress
+  integer, parameter :: moist_stress_vsfm_spac    = 1  !method for calculating root moisture stress with VSFM-SPAC
+
   logical,  private :: perchroot     = .false.  ! true => btran is based only on unfrozen soil levels
   logical,  private :: perchroot_alt = .false.  ! true => btran is based on active layer (defined over two years); 
   !--------------------------------------------------------------------------------
@@ -40,9 +43,15 @@ contains
     !DESCRIPTION
     !specify the method to compute root soil moisture stress
     !
+    ! !USES
+    use clm_varctl, only : use_vsfm_spac
+
     implicit none
 
-    root_moist_stress_method = moist_stress_clm_default   
+    root_moist_stress_method = moist_stress_clm_default
+
+    if (use_vsfm_spac) root_moist_stress_method = moist_stress_vsfm_spac
+
   end subroutine init_root_moist_stress
 
   !--------------------------------------------------------------------------------
@@ -434,6 +443,123 @@ contains
   end subroutine calc_root_moist_stress_clm45default
 
   !--------------------------------------------------------------------------------
+  subroutine calc_root_moist_stress_vsfm_spac(bounds, &
+       nlevgrnd, fn, filterp, rootfr_unf, &
+       temperature_vars, soilstate_vars, energyflux_vars, waterstate_vars, &
+       soil_water_retention_curve)
+    !
+    ! DESCRIPTIONS
+    ! compute the root water stress when VSFM-SPAC is on
+    !
+    ! USES
+    use shr_kind_mod         , only : r8 => shr_kind_r8
+    use shr_log_mod          , only : errMsg => shr_log_errMsg
+    use decompMod            , only : bounds_type
+    use clm_varcon           , only : tfrz      !temperature where water freezes [K], this is taken as constant at the moment
+    use EcophysConType       , only : ecophyscon
+    use TemperatureType      , only : temperature_type
+    use SoilStateType        , only : soilstate_type
+    use EnergyFluxType       , only : energyflux_type
+    use WaterSTateType       , only : waterstate_type
+    use SoilWaterRetentionCurveMod, only : soil_water_retention_curve_type
+    use PatchType            , only : pft
+    use clm_varcon           , only : denh2o
+    use abortutils           , only : endrun
+    !
+    ! !ARGUMENTS:
+    implicit none
+    type(bounds_type)      , intent(in)    :: bounds                         !bounds
+    integer                , intent(in)    :: nlevgrnd                       !number of vertical layers
+    integer                , intent(in)    :: fn                             !number of filters
+    integer                , intent(in)    :: filterp(:)                     !filter array
+    real(r8)               , intent(in)    :: rootfr_unf(bounds%begp: , 1: )
+    type(energyflux_type)  , intent(inout) :: energyflux_vars
+    type(soilstate_type)   , intent(inout) :: soilstate_vars
+    type(temperature_type) , intent(in)    :: temperature_vars
+    type(waterstate_type)  , intent(inout) :: waterstate_vars
+    class(soil_water_retention_curve_type), intent(in) :: soil_water_retention_curve
+    !
+    ! !LOCAL VARIABLES:
+    integer  :: p, f, j, c, l      !indices
+    integer  :: nlevxyl
+    real(r8) :: xylem_fr
+    real(r8) :: den, num
+    !------------------------------------------------------------------------------
+
+    ! Enforce expected array sizes
+    SHR_ASSERT_ALL((ubound(rootfr_unf) == (/bounds%endp, nlevgrnd/)), errMsg(__FILE__, __LINE__))
+
+    associate(                                                &
+         smpso         => ecophyscon%smpso                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
+         smpsc         => ecophyscon%smpsc                  , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
+         tc_stress     => ecophyscon%tc_stress              , & ! Input:  [real(r8)       ]  critical soil temperature for soil water stress (C)
+         t_soisno      => temperature_vars%t_soisno_col     , & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)  (-nlevsno+1:nlevgrnd)
+
+         watsat        => soilstate_vars%watsat_col         , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)   (constant)
+         sucsat        => soilstate_vars%sucsat_col         , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)                        (constant)
+         bsw           => soilstate_vars%bsw_col            , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"                         (constant)
+         eff_porosity  => soilstate_vars%eff_porosity_col   , & ! Input:  [real(r8) (:,:) ]  effective porosity = porosity - vol_ice
+         rootfr        => soilstate_vars%rootfr_patch       , & ! Input:  [real(r8) (:,:) ]  fraction of roots in each soil layer
+         rootr         => soilstate_vars%rootr_patch        , & ! Output: [real(r8) (:,:) ]  effective fraction of roots in each soil layer
+
+         btran         => energyflux_vars%btran_patch       , & ! Output: [real(r8) (:)   ]  transpiration wetness factor (0 to 1) (integrated soil water stress)
+         btran2        => energyflux_vars%btran2_patch      , & ! Output: [real(r8) (:)   ]  integrated soil water stress square
+         rresis        => energyflux_vars%rresis_patch      , & ! Output: [real(r8) (:,:) ]  root soil water stress (resistance) by layer (0-1)  (nlevgrnd)
+
+         h2oxylem_liq  => waterstate_vars%h2oxylem_liq_col  , & ! Input:  [real(r8) (:,:) ]  xylem liquid water (kg/m2)
+         xylemp_col    => waterstate_vars%xylemp_col       , & ! Input:  [real(r8) (:,:) ]  xylem water pressure (Pa)
+
+         h2osoi_vol    => waterstate_vars%h2osoi_vol_col    , & ! Input:  [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
+         h2osoi_liqvol => waterstate_vars%h2osoi_liqvol_col   & ! Output: [real(r8) (:,:) ]  liquid volumetric moisture, will be used for BeTR
+         )
+
+      if (fn > 1) call endrun('calc_root_moist_stress_vsfm_spac:: not supported for fn>1!')
+
+      nlevxyl   = 170
+      xylem_fr  = 1._r8/nlevxyl ! Assuming homogeneous vertical profile
+
+      do j = 1, nlevxyl
+         do f = 1, fn
+            p = filterp(f)
+            c = pft%column(p)
+            l = pft%landunit(p)
+
+            if (xylemp_col(c,j) <= smpsc(pft%itype(p))) then
+               btran(p) = btran(p) + 0._r8
+            else
+               if (xylemp_col(c,j) >= smpso(pft%itype(p))) then
+                  btran(p) = btran(p) + xylem_fr
+               else
+                  num = smpsc(pft%itype(p)) - xylemp_col(c,j)
+                  den = smpsc(pft%itype(p)) - smpso(pft%itype(p))
+                  btran(p) = btran(p) + (num/den)*xylem_fr
+               endif
+            endif
+
+            btran2(p) = btran(p)
+
+         end do
+      end do
+
+      ! Normalize root resistances to get layer contribution to ET
+      ! Only traverse over the first soil layer because the
+      ! Transpiration will be taken from xylem profile instead of
+      ! the root profile
+      do j = 1,1
+         do f = 1, fn
+            p = filterp(f)
+            if (btran(p) > 0._r8) then
+               rootr(p,j) = 1._r8 !rootr(p,j)/btran(p)
+            else
+               rootr(p,j) = 0._r8
+            end if
+         end do
+      end do
+    end associate
+
+  end subroutine calc_root_moist_stress_vsfm_spac
+
+  !--------------------------------------------------------------------------------
   subroutine calc_root_moist_stress(bounds, nlevgrnd, fn, filterp, &
        canopystate_vars, energyflux_vars,  soilstate_vars, temperature_vars, &
        waterstate_vars, soil_water_retention_curve)
@@ -494,6 +620,19 @@ contains
     case (moist_stress_clm_default)
 
        call calc_root_moist_stress_clm45default(bounds, &
+            nlevgrnd = nlevgrnd,                        &
+            fn = fn,                                    &
+            filterp = filterp,                          &
+            energyflux_vars=energyflux_vars,            &
+            temperature_vars=temperature_vars,          &
+            soilstate_vars=soilstate_vars,              &
+            waterstate_vars=waterstate_vars,            &
+            rootfr_unf=rootfr_unf(bounds%begp:bounds%endp,1:nlevgrnd), &
+            soil_water_retention_curve=soil_water_retention_curve)
+
+    case (moist_stress_vsfm_spac)
+
+       call calc_root_moist_stress_vsfm_spac(bounds, &
             nlevgrnd = nlevgrnd,                        &
             fn = fn,                                    &
             filterp = filterp,                          &

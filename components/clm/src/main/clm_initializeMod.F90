@@ -918,6 +918,7 @@ contains
     use clm_varctl               , only : use_petsc_thermal_model
     use clm_varctl               , only : lateral_connectivity
     use clm_varctl               , only : finidat
+    use clm_varctl               , only : use_vsfm_spac
     use decompMod                , only : get_proc_clumps
     use mpp_varpar               , only : mpp_varpar_init
     use mpp_varcon               , only : mpp_varcon_init_landunit
@@ -928,6 +929,7 @@ contains
     use mpp_bounds               , only : mpp_bounds_init_clump
     use ExternalModelInterfaceMod, only : EMI_Init_EM
     use ExternalModelConstants   , only : EM_ID_VSFM
+    use ExternalModelConstants   , only : EM_ID_VSFM_SPAC
     use ExternalModelConstants   , only : EM_ID_PTM
 
     implicit none
@@ -977,6 +979,14 @@ contains
        else
           call initialize_vsfm()
        endif
+    endif
+
+    if (use_vsfm_spac) then
+       call mpp_bounds_init_proc_bounds(1, 1, &
+                                        1, 1, &
+                                        1, 1, &
+                                        1, 1)
+       call EMI_Init_EM(EM_ID_VSFM_SPAC)
     endif
 
     if (use_petsc_thermal_model) then
@@ -1275,6 +1285,7 @@ contains
     ! !USES:
     use spmdMod    , only : mpicom
     use clm_varctl , only : use_vsfm
+    use clm_varctl , only : use_vsfm_spac
     use clm_varctl , only : lateral_connectivity
     use clm_varctl , only : use_petsc_thermal_model
     !
@@ -1287,6 +1298,7 @@ contains
 #endif
 
     if ( (.not. use_vsfm)               .and. &
+         (.not. use_vsfm_spac)          .and. &
          (.not. lateral_connectivity)   .and. &
          (.not. use_petsc_thermal_model) ) return
 
