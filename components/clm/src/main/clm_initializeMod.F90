@@ -911,6 +911,7 @@ contains
     use clm_varctl     , only : vsfm_lateral_model_type
     use clm_varctl     , only : use_petsc_thermal_model
     use clm_varctl     , only : lateral_connectivity
+    use clm_varctl     , only : finidat
     use decompMod      , only : get_proc_clumps
     use mpp_varpar     , only : mpp_varpar_init
     use mpp_varcon     , only : mpp_varcon_init_landunit
@@ -923,8 +924,21 @@ contains
     implicit none
 
     type(bounds_type) :: bounds_proc
+    logical           :: restart_vsfm          ! does VSFM need to be restarted
 
     call t_startf('clm_init3')
+
+    ! Is this a restart run?
+    restart_vsfm = .false.
+    if (nsrest == nsrStartup) then
+       if (finidat == ' ') then
+          restart_vsfm = .false.
+       else
+          restart_vsfm = .true.
+       end if
+    else if ((nsrest == nsrContinue) .or. (nsrest == nsrBranch)) then
+       restart_vsfm = .true.
+    end if
 
     call mpp_varpar_init (nlevsoi, nlevgrnd, nlevsno, max_patch_per_col)
 
@@ -935,8 +949,8 @@ contains
       icol_road_imperv, icol_road_perv)
 
     call mpp_varctl_init_vsfm(use_vsfm, vsfm_use_dynamic_linesearch, &
-      vsfm_include_seepage_bc, lateral_connectivity, vsfm_satfunc_type, &
-      vsfm_lateral_model_type)
+      vsfm_include_seepage_bc, lateral_connectivity, restart_vsfm, &
+      vsfm_satfunc_type, vsfm_lateral_model_type)
 
     call mpp_varctl_init_petsc_thermal(use_petsc_thermal_model)
 
