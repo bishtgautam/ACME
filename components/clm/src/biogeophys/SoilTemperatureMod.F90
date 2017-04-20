@@ -215,9 +215,12 @@ contains
     integer  :: jbot(bounds%begc:bounds%endc)                               ! bottom level at each column
     integer  :: num_nolakec_and_nourbanc
     integer  :: num_nolakec_and_urbanc
+    integer  :: num_filter_lun
     integer, pointer :: filter_nolakec_and_nourbanc(:)
     integer, pointer :: filter_nolakec_and_urbanc(:)
+    integer, pointer :: filter_lun(:)
     logical  :: urban_column
+    logical  :: update_temperature
     !-----------------------------------------------------------------------
 
     associate(                                                                   & 
@@ -364,6 +367,12 @@ contains
          endif
       end do
 
+      num_filter_lun = bounds%endl - bounds%begl + 1
+      allocate(filter_lun(num_filter_lun))
+      do fc = 1, num_filter_lun
+         filter_lun(fc) = bounds%begl + fc - 1
+      enddo
+
       !------------------------------------------------------
       ! Compute ground surface and soil temperatures
       !------------------------------------------------------
@@ -435,6 +444,7 @@ contains
       ! Solve temperature for non-lake + non-urban columns
       !
 
+      update_temperature = .true.
       select case(thermal_model)
       case (default_thermal_model)
 
@@ -465,6 +475,7 @@ contains
       case (petsc_thermal_model)
 #ifdef USE_PETSC_LIB
          if (1 == 1) then
+            update_temperature = .false.
             call Prepare_Data_for_EM_PTM_Driver(bounds, &
                  num_nolakec_and_nourbanc,              &
                  filter_nolakec_and_nourbanc,           &
@@ -481,6 +492,8 @@ contains
                  dt = get_step_size()*1.0_r8,                               &
                  num_nolakec_and_nourbanc = num_nolakec_and_nourbanc,       &
                  filter_nolakec_and_nourbanc = filter_nolakec_and_nourbanc, &
+                 num_filter_lun = num_filter_lun,                           &
+                 filter_lun = filter_lun,                                   &
                  waterstate_vars = waterstate_vars,                         &
                  energyflux_vars = energyflux_vars,                         &
                  temperature_vars = temperature_vars)
@@ -549,7 +562,7 @@ contains
 
          else
 
-            if (1 == 0) then
+            if (update_temperature) then
             do j = snl(c)+1, 0
                t_soisno(c,j)       = tvector_nourbanc(c,j-1)        !snow layers
             end do
