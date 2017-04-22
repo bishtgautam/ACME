@@ -998,6 +998,10 @@ contains
     ! !DESCRIPTION:
     ! Initialization VSFM
     !
+#ifdef USE_PETSC_LIB
+#include <petsc/finclude/petsc.h>
+#endif
+    !
     ! !USES:
     use spmdMod                , only : mpicom, npes
     use clm_varctl             , only : use_vsfm
@@ -1019,10 +1023,6 @@ contains
     !
     ! !ARGUMENTS
     implicit none
-    !
-#ifdef USE_PETSC_LIB
-#include "finclude/petscsys.h"
-#endif
     !
     ! !LOCAL VARIABLES:
     integer               :: nclumps               ! number of clumps on this processor
@@ -1272,17 +1272,22 @@ contains
     ! !DESCRIPTION:
     ! Initialize PETSc
     !
+#ifdef USE_PETSC_LIB
+#include <petsc/finclude/petsc.h>
+#endif
     ! !USES:
     use spmdMod    , only : mpicom
     use clm_varctl , only : use_vsfm
     use clm_varctl , only : lateral_connectivity
     use clm_varctl , only : use_petsc_thermal_model
+#ifdef USE_PETSC_LIB
+    use petscsys
+#endif
     !
     implicit none
-#ifdef USE_PETSC_LIB
-#include "finclude/petscsys.h"
     !
     ! !LOCAL VARIABLES:
+#ifdef USE_PETSC_LIB
     PetscErrorCode        :: ierr                  ! get error code from PETSc
 #endif
 
