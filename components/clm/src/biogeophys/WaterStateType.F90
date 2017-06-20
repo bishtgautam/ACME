@@ -53,6 +53,9 @@ module WaterstateType
      real(r8), pointer :: ice1_grc               (:)   ! grc initial gridcell total h2o ice content
      real(r8), pointer :: ice2_grc               (:)   ! grc post land cover change total ice content
      real(r8), pointer :: tws_grc                (:)   ! grc total water storage (mm H2O)
+     real(r8), pointer :: h2oroot_liq_col        (:,:) ! col liquid water in plant root (kg/m2)
+     real(r8), pointer :: h2oxylem_liq_col       (:,:) ! col liquid water in plant xylem (kg/m2)
+     real(r8), pointer :: xylemp_col             (:,:) ! col xylem water pressure (mm)
 
 
      real(r8), pointer :: total_plant_stored_h2o_col(:) ! col water that is bound in plants, including roots, sapwood, leaves, etc
@@ -203,6 +206,9 @@ contains
     allocate(this%ice1_grc               (begg:endg))                     ; this%ice1_grc               (:)   = nan
     allocate(this%ice2_grc               (begg:endg))                     ; this%ice2_grc               (:)   = nan
     allocate(this%tws_grc                (begg:endg))                     ; this%tws_grc                (:)   = nan
+    allocate(this%h2oroot_liq_col        (begc:endc,1:nlevgrnd))          ; this%h2oroot_liq_col        (:,:) = nan
+    allocate(this%h2oxylem_liq_col       (begc:endc,1:170))               ; this%h2oxylem_liq_col       (:,:) = nan
+    allocate(this%xylemp_col             (begc:endc,1:170))               ; this%xylemp_col             (:,:) = nan
 
     allocate(this%total_plant_stored_h2o_col(begc:endc))                  ; this%total_plant_stored_h2o_col(:) = nan
 
@@ -711,6 +717,10 @@ contains
                   this%h2osoi_ice_col(c,j) = 0._r8
                   this%h2osoi_liq_col(c,j) = col%dz(c,j)*denh2o*this%h2osoi_vol_col(c,j)
                endif
+
+               this%h2oroot_liq_col(c,:)  = 0._r8
+               this%h2oxylem_liq_col(c,:) = 0._r8
+
             end do
             do j = -nlevsno+1, 0
                if (j > snl(c)) then

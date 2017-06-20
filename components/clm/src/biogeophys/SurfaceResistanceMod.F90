@@ -106,6 +106,7 @@ contains
      use ColumnType      , only : col
      use LandunitType    , only : lun
      use clm_varctl      , only : use_vsfm
+     use clm_varctl      , only : use_vsfm_spac
      !
      implicit none
      type(bounds_type)     , intent(in)    :: bounds    ! bounds   
@@ -154,12 +155,12 @@ contains
                 else   !when water content of ths top layer is more than that at F.C.
                    soilbeta(c) = 1._r8
                 end if
-                if ( use_vsfm .and. &
+                if ( (use_vsfm .or. use_vsfm_spac) .and. &
                      ((wx < watmin(c,1)) .or. (soilp_col(c,1) < sucmin(c,1)))) then
                    soilbeta(c) = 0._r8
                 end if
              else if (col%itype(c) == icol_road_perv) then
-                if (.not. use_vsfm) then
+                if (.not. (use_vsfm .or. use_vsfm_spac)) then
                    soilbeta(c) = 0._r8
                 else
                    wx   = (h2osoi_liq(c,1)/denh2o+h2osoi_ice(c,1)/denice)/col%dz(c,1)

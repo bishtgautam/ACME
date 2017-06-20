@@ -51,6 +51,7 @@ contains
     use SoilHydrologyMod , only : CLMVICMap, Drainage
     use TracerParamsMod  , only : pre_diagnose_soilcol_water_flux, diagnose_drainage_water_flux    
     use clm_varctl       , only : use_vsfm
+    use clm_varctl       , only : use_vsfm_spac
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds               
@@ -97,7 +98,9 @@ contains
          h2osoi_vol             => waterstate_vars%h2osoi_vol_col             , & ! Output: [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
          snow_persistence       => waterstate_vars%snow_persistence_col       , & ! Output: [real(r8) (:)   ]  counter for length of time snow-covered
          total_plant_stored_h2o => waterstate_vars%total_plant_stored_h2o_col , & ! Input [real(r8) (:) dynamic water stored in plants]
-         qflx_evap_tot          => waterflux_vars%qflx_evap_tot_col           , & ! Input:  [real(r8) (:)   ]  qflx_evap_soi + qflx_evap_can + qflx_tran_veg     
+         h2oroot_liq            => waterstate_vars%h2oroot_liq_col            , & ! Output: [real(r8) (:,:) ]  root liquid water (kg/m2)
+         h2oxylem_liq           => waterstate_vars%h2oxylem_liq_col           , & ! Output: [real(r8) (:,:) ]  xylem liquid water (kg/m2)
+         qflx_evap_tot          => waterflux_vars%qflx_evap_tot_col           , & ! Input:  [real(r8) (:)   ]  qflx_evap_soi + qflx_evap_can + qflx_tran_veg
          qflx_irrig             => waterflux_vars%qflx_irrig_col              , & ! Input:  [real(r8) (:)   ]  irrigation flux (mm H2O /s)                       
          qflx_glcice_melt       => waterflux_vars%qflx_glcice_melt_col        , & ! Input:  [real(r8) (:)]  ice melt (positive definite) (mm H2O/s)      
          qflx_h2osfc_surf       => waterflux_vars%qflx_h2osfc_surf_col        , & ! Output: [real(r8) (:)   ]  surface water runoff (mm/s)                        
@@ -129,7 +132,7 @@ contains
               h2osoi_liq(bounds%begc:bounds%endc, 1:nlevsoi))
       endif
 
-      if (.not. use_vsfm) then
+      if (.not. (use_vsfm .or. use_vsfm_spac) ) then
          call Drainage(bounds, num_hydrologyc, filter_hydrologyc, &
               num_urbanc, filter_urbanc,&
               temperature_vars, soilhydrology_vars, soilstate_vars, &
@@ -189,6 +192,16 @@ contains
          endwb(c) = endwb(c) + total_plant_stored_h2o(c)
       end do
       
+      do fc = 1, num_nolakec
+         c = filter_nolakec(fc)
+         do j = 1, nlevgrnd
+            endwb(c) = endwb(c) + h2oroot_liq(c,j)
+         enddo
+         do j = 1, 170
+            endwb(c) = endwb(c) + h2oxylem_liq(c,j)
+         enddo
+      end do
+
       ! Prior to summing up wetland/ice hydrology, calculate land ice contributions/sinks
       ! to this hydrology.
       ! 1) Generate SMB from capped-snow amount.  This is done over istice_mec

@@ -60,6 +60,7 @@ contains
     use clm_varpar          , only : maxpatch_urb, nlevurb, nlevgrnd
     use clm_time_manager    , only : get_curr_date, get_step_size, get_nstep
     use clm_varctl          , only : use_vsfm
+    use clm_varctl          , only : use_vsfm_spac
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds    
@@ -491,7 +492,7 @@ contains
                ! unscaled latent heat conductance
                wtuq_road_perv_unscl(l) = 1._r8/canyon_resistance(l)
 
-               if (use_vsfm) then
+               if (use_vsfm .or. use_vsfm_spac) then
                   if (qaf(l) < qg(c)) then
                      if (do_soilevap_beta()) then
                         wtuq_road_perv(l)       = soilbeta(c)*wtuq_road_perv(l)

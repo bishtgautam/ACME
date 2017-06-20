@@ -24,6 +24,9 @@ module ExternalModelConstants
   integer, public, parameter :: EM_ID_PTM                                        = 400
   integer, parameter, public :: EM_PTM_TBASED_SOLVE_STAGE                        = 401
 
+  integer, public, parameter :: EM_ID_VSFM_SPAC                                  = 500
+  integer, parameter, public :: EM_VSFM_SPAC_SOLVE_STAGE                         = 501
+
   ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! IDs for state variables sent from ALM to External Model
   ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -63,6 +66,9 @@ module ExternalModelConstants
   integer, parameter, public :: E2L_STATE_H2OSOI_LIQ                             = 0301
   integer, parameter, public :: E2L_STATE_H2OSOI_ICE                             = 0302
   integer, parameter, public :: E2L_STATE_VSFM_PROGNOSTIC_SOILP                  = 0303
+  integer, parameter, public :: E2L_STATE_H2OROOT_LIQ                            = 0304
+  integer, parameter, public :: E2L_STATE_H2OXYLEM_LIQ                           = 0305
+  integer, parameter, public :: E2L_STATE_XYLEM_MATRIC_POTENTIAL                 = 0306
 
   ! soilhydrology_type
   integer, parameter, public :: E2L_STATE_WTD                                    = 0401

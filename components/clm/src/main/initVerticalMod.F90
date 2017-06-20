@@ -24,6 +24,7 @@ module initVerticalMod
   use LandunitType   , only : lun                
   use ColumnType     , only : col                
   use ncdio_pio
+  use clm_varctl     , only : use_vsfm_spac
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -125,6 +126,12 @@ contains
           zsoi(j) = scalez*(exp(0.5_r8*(j-0.5_r8))-1._r8)    !node depths
        enddo
     end if
+
+    if (use_vsfm_spac) then
+       do j = 1, nlevgrnd
+          zsoi(j) = (j - 1)*0.1_r8 + 0.05_r8
+       enddo
+    endif
 
     dzsoi(1) = 0.5_r8*(zsoi(1)+zsoi(2))             !thickness b/n two interfaces
     do j = 2,nlevgrnd-1

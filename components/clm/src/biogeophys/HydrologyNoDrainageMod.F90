@@ -76,6 +76,7 @@ contains
     use tracerstatetype      , only : tracerstate_type
     use BeTRTracerType       , only : betrtracer_type        
     use clm_varctl           , only : use_vsfm
+    use clm_varctl           , only : use_vsfm_spac
     use SoilHydrologyMod     , only : DrainageVSFM
     use SoilWaterMovementMod, only : Compute_EffecRootFrac_And_VertTranSink_Default
     use CLMFatesInterfaceMod  , only : hlm_fates_interface_type
@@ -206,7 +207,7 @@ contains
           waterstate_vars%h2osoi_liq_col(bounds%begc:bounds%endc, 1:nlevsoi))
       endif
       
-      if (use_vsfm) then
+      if (use_vsfm .or. use_vsfm_spac) then
          call DrainageVSFM(bounds, num_hydrologyc, filter_hydrologyc, &
               num_urbanc, filter_urbanc,&
               temperature_vars, soilhydrology_vars, soilstate_vars, &

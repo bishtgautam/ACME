@@ -74,7 +74,9 @@ contains
          h2osoi_ice             =>    waterstate_vars%h2osoi_ice_col             , & ! Input:  [real(r8) (:,:) ]  ice lens (kg/m2)                      
          h2osoi_liq             =>    waterstate_vars%h2osoi_liq_col             , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2)                  
          total_plant_stored_h2o =>    waterstate_vars%total_plant_stored_h2o_col , & ! Input [real(r8) (:) dynamic water stored in plants
-         zwt                    =>    soilhydrology_vars%zwt_col                 , & ! Input:  [real(r8) (:)   ]  water table depth (m)                   
+         h2oroot_liq            =>    waterstate_vars%h2oroot_liq_col            , & ! Input:  [real(r8) (:,:) ]  root liquid water (kg/m2)
+         h2oxylem_liq           =>    waterstate_vars%h2oxylem_liq_col           , & ! Input:  [real(r8) (:,:) ]  xylem liquid water (kg/m2)
+         zwt                    =>    soilhydrology_vars%zwt_col                 , & ! Input:  [real(r8) (:)   ]  water table depth (m)
          wa                     =>    soilhydrology_vars%wa_col                  , & ! Output: [real(r8) (:)   ]  water in the unconfined aquifer (mm)    
          h2ocan_col             =>    waterstate_vars%h2ocan_col                 , & ! Output: [real(r8) (:)   ]  canopy water (mm H2O) (column level)    
          begwb                  =>    waterstate_vars%begwb_col                    & ! Output: [real(r8) (:)   ]  water mass begining of the time step    
@@ -126,6 +128,16 @@ contains
          c = filter_nolakec(f)
          begwb(c) = begwb(c) + total_plant_stored_h2o(c)
       end do
+
+      do f = 1, num_nolakec
+         c = filter_nolakec(f)
+         do j = 1, nlevgrnd
+            begwb(c) = begwb(c) + h2oroot_liq(c,j)
+         enddo
+         do j = 1, 170
+            begwb(c) = begwb(c) + h2oxylem_liq(c,j)
+         enddo
+      enddo
 
       do f = 1, num_lakec
          c = filter_lakec(f)
