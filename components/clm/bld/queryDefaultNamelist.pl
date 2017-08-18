@@ -185,6 +185,10 @@ EOF
                                  "$drvblddir/namelist_files/namelist_definition_drv.xml",
                                  "$cfgdir/namelist_files/namelist_definition_$model.xml" 
                                );
+  my @nl_definition_files    = ( "$cfgdir/namelist_files/namelist_definition_drv.xml",
+                                 "$cfgdir/namelist_files/namelist_definition_$model.xml" 
+                               );
+
   $inputopts{empty_cfg_file} = "$cfgdir/config_files/config_definition_$model.xml";
   $inputopts{nldef_files}    = \@nl_definition_files;
   $inputopts{namelist}       = $opts{namelist};
@@ -253,7 +257,6 @@ EOF
                    "$cfgdir/namelist_files/namelist_defaults_${model}_tools.xml", 
                    "$drvblddir/namelist_files/namelist_defaults_drv.xml",
                    "$cfgdir/namelist_files/namelist_defaults_drydep.xml",
-                   "$datmblddir/namelist_files/namelist_defaults_datm.xml",
                  );
      push( @nl_defaults_files, @files );
   }
