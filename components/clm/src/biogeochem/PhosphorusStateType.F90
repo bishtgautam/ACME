@@ -21,7 +21,9 @@ module PhosphorusStateType
   use ColumnType             , only : col_pp                
   use VegetationType              , only : veg_pp
   use clm_varctl             , only : nu_com
-              
+  ! soil phosphorus initialization Qing Z. 2017
+  use pftvarcon              , only : VMAX_MINSURF_P_vr, KM_MINSURF_P_vr
+  use soilorder_varcon       , only : smax, ks_sorption
   ! 
   ! !PUBLIC TYPES:
   implicit none
@@ -854,7 +856,7 @@ contains
     character(len=*)           , intent(in)    :: flag   !'read' or 'write' or 'define'
     !
     ! !LOCAL VARIABLES:
-    integer            :: i,j,k,l,c
+    integer            :: i,j,k,l,c,a,b,d
     logical            :: readvar
     integer            :: idata
     logical            :: exit_spinup = .false.
@@ -1236,6 +1238,38 @@ contains
           this%deadcrootp_patch(i) = this%deadcrootp_patch(i) * m_veg
        end do
 
+       ! soil phosphorus initialization when exit AD spinup Qing Z. 2017
+       if ( exit_spinup ) then ! AD spinup -> RG spinup
+       do c = bounds%begc, bounds%endc
+             if (use_vertsoilc) then
+                do j = 1, nlevdecomp
+                   ! solve equilibrium between loosely adsorbed and solution
+                   ! phosphorus
+                   if ((nu_com .eq. 'ECA') .or. (nu_com .eq. 'MIC')) then
+                      a = 1;
+                      b = VMAX_MINSURF_P_vr(j,cnstate_vars%isoilorder(c)) + &
+                          KM_MINSURF_P_vr(j,cnstate_vars%isoilorder(c)) - cnstate_vars%labp_col(c)/zisoi(nlevdecomp);
+                      d = -1.0* cnstate_vars%labp_col(c)/zisoi(nlevdecomp) * KM_MINSURF_P_vr(j,cnstate_vars%isoilorder(c));
+                   else if (nu_com .eq. 'RD') then
+                      a = 1;
+                      b = smax(cnstate_vars%isoilorder(c)) + &
+                          ks_sorption(cnstate_vars%isoilorder(c)) - cnstate_vars%labp_col(c)/zisoi(nlevdecomp);
+                      d = -1.0* cnstate_vars%labp_col(c)/zisoi(nlevdecomp) - this%solutionp_vr_col(c,j)
+                   end if
+                   this%secondp_vr_col(c,j) = cnstate_vars%secp_col(c)/zisoi(nlevdecomp)
+                   this%occlp_vr_col(c,j) = cnstate_vars%occp_col(c)/zisoi(nlevdecomp)
+                   this%primp_vr_col(c,j) = cnstate_vars%prip_col(c)/zisoi(nlevdecomp)
+                end do
+             else
+                this%solutionp_vr_col(c,1) = cnstate_vars%labp_col(c)/2._r8
+                this%labilep_vr_col(c,1) = cnstate_vars%labp_col(c)/2._r8
+                this%secondp_vr_col(c,1) = cnstate_vars%secp_col(c)
+                this%occlp_vr_col(c,1) = cnstate_vars%occp_col(c)
+                this%primp_vr_col(c,1) = cnstate_vars%prip_col(c)
+             end if
+          end do
+       end if
+       
     end if
 
   end subroutine Restart
