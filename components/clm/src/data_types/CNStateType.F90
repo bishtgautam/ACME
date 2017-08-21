@@ -684,6 +684,11 @@ contains
     integer     ,pointer     :: fert_type_rdin (:)
     integer     ,pointer     :: fert_continue_rdin (:)
     real(r8)    ,pointer     :: fert_dose_rdin (:,:)
+    ! soil phosphorus pool Qing Z. 2017
+    real(r8) ,pointer  :: labp_g (:)                       ! read in - LABILE_P
+    real(r8) ,pointer  :: secp_g (:)                       ! read in - SECONDARY_P
+    real(r8) ,pointer  :: occp_g (:)                       ! read in - OCCLUDED_P
+    real(r8) ,pointer  :: prip_g (:)                       ! read in - APATITE_P
     !-----------------------------------------------------------------------
 
     begc = bounds%begc; endc= bounds%endc
@@ -823,6 +828,58 @@ contains
        write(iulog,*)
     endif
     
+    if (masterproc) then
+       write(iulog,*) 'Attempting to read initial phosphorus pools data .....'
+    end if
+
+    call getfil (fsurdat, locfn, 0)
+    call ncd_pio_openfile (ncid, locfn, 0)
+
+    ! Read soil phosphorus pool Qing Z. 2017 
+    allocate(labp_g(bounds%begg:bounds%endg))
+    call ncd_io(ncid=ncid, varname='LABILE_P', flag='read', data=labp_g, dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) then
+       call endrun(msg=' ERROR: LABILE_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+    end if
+    do c = bounds%begc, bounds%endc
+       g = col_pp%gridcell(c)
+       this%labp_col(c) = labp_g(g)
+    end do
+    deallocate(labp_g)
+
+    allocate(secp_g(bounds%begg:bounds%endg))
+    call ncd_io(ncid=ncid, varname='SECONDARY_P', flag='read', data=secp_g, dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) then
+       call endrun(msg=' ERROR: SECONDARY_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+    end if
+    do c = bounds%begc, bounds%endc
+       g = col_pp%gridcell(c)
+       this%secp_col(c) = secp_g(g)
+    end do
+    deallocate(secp_g)
+
+    allocate(occp_g(bounds%begg:bounds%endg))
+    call ncd_io(ncid=ncid, varname='OCCLUDED_P', flag='read', data=occp_g, dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) then
+       call endrun(msg=' ERROR: OCCLUDED_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+    end if
+    do c = bounds%begc, bounds%endc
+       g = col_pp%gridcell(c)
+       this%occp_col(c) = occp_g(g)
+    end do
+    deallocate(occp_g)
+
+    allocate(prip_g(bounds%begg:bounds%endg))
+    call ncd_io(ncid=ncid, varname='APATITE_P', flag='read', data=prip_g, dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) then
+       call endrun(msg=' ERROR: APATITE_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+    end if
+    do c = bounds%begc, bounds%endc
+       g = col_pp%gridcell(c)
+       this%prip_col(c) = prip_g(g)
+    end do
+    deallocate(prip_g)  
+
     ! --------------------------------------------------------------------
     ! Initialize terms needed for dust model
     ! TODO - move these terms to DUSTMod module variables 
@@ -993,12 +1050,6 @@ contains
     logical          :: readvar   ! determine if variable is on initial file
     real(r8), pointer :: ptr2d(:,:) ! temp. pointers for slicing larger arrays
     real(r8), pointer :: ptr1d(:)   ! temp. pointers for slicing larger arrays
-    ! soil phosphorus pool Qing Z. 2017
-    real(r8) ,pointer  :: labp_g (:)                       ! read in - LABILE_P
-    real(r8) ,pointer  :: secp_g (:)                       ! read in - SECONDARY_P
-    real(r8) ,pointer  :: occp_g (:)                       ! read in - OCCLUDED_P
-    real(r8) ,pointer  :: prip_g (:)                       ! read in - APATITE_P
-    character(len=256) :: locfn                            ! local filename
     !-----------------------------------------------------------------------
   
     call restartvar(ncid=ncid, flag=flag, varname='dormant_flag', xtype=ncd_double,  &
@@ -1357,58 +1408,6 @@ contains
     call restartvar(ncid=ncid, flag=flag, varname='cp_scalar', xtype=ncd_double,  &
             dim1name='pft', long_name='cp_scalar', units='-', &
             interpinic_flag='interp', readvar=readvar, data=this%cp_scalar)
-
-    if (masterproc) then
-       write(iulog,*) 'Attempting to read initial phosphorus pools data .....'
-    end if
-
-    call getfil (fsurdat, locfn, 0)
-    call ncd_pio_openfile (ncid, locfn, 0)
-    
-    ! Read soil phosphorus pool Qing Z. 2017 
-    allocate(labp_g(bounds%begg:bounds%endg))
-    call ncd_io(ncid=ncid, varname='LABILE_P', flag='read', data=labp_g, dim1name=grlnd, readvar=readvar)
-    if (.not. readvar) then
-       call endrun(msg=' ERROR: LABILE_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
-    end if
-    do c = bounds%begc, bounds%endc
-       g = col_pp%gridcell(c)
-       this%labp_col(c) = labp_g(g)
-    end do
-    deallocate(labp_g)
-
-    allocate(secp_g(bounds%begg:bounds%endg))
-    call ncd_io(ncid=ncid, varname='SECONDARY_P', flag='read', data=secp_g, dim1name=grlnd, readvar=readvar)
-    if (.not. readvar) then
-       call endrun(msg=' ERROR: SECONDARY_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
-    end if
-    do c = bounds%begc, bounds%endc
-       g = col_pp%gridcell(c)
-       this%secp_col(c) = secp_g(g)
-    end do
-    deallocate(secp_g)
-
-    allocate(occp_g(bounds%begg:bounds%endg))
-    call ncd_io(ncid=ncid, varname='OCCLUDED_P', flag='read', data=occp_g, dim1name=grlnd, readvar=readvar)
-    if (.not. readvar) then
-       call endrun(msg=' ERROR: OCCLUDED_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
-    end if
-    do c = bounds%begc, bounds%endc
-       g = col_pp%gridcell(c)
-       this%occp_col(c) = occp_g(g)
-    end do
-    deallocate(occp_g)
-
-    allocate(prip_g(bounds%begg:bounds%endg))
-    call ncd_io(ncid=ncid, varname='APATITE_P', flag='read', data=prip_g, dim1name=grlnd, readvar=readvar)
-    if (.not. readvar) then
-       call endrun(msg=' ERROR: APATITE_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
-    end if
-    do c = bounds%begc, bounds%endc
-       g = col_pp%gridcell(c)
-       this%prip_col(c) = prip_g(g)
-    end do
-    deallocate(prip_g) 
 
   end subroutine Restart
 
