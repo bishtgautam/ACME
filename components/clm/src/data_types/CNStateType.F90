@@ -164,6 +164,7 @@ module CNStateType
      real(r8), pointer :: secp_col             (:)   ! secondary phosphorus g/m2
      real(r8), pointer :: occp_col             (:)   ! occluded phosphorus g/m2
      real(r8), pointer :: prip_col             (:)   ! parent material phosphorus g/m2
+     logical           :: pdatasets_present          ! surface dataset has p pools info
    contains
 
      procedure, public  :: Init         
@@ -836,48 +837,53 @@ contains
     call ncd_pio_openfile (ncid, locfn, 0)
 
     ! Read soil phosphorus pool Qing Z. 2017 
+    this%pdatasets_present = .true.
     allocate(labp_g(bounds%begg:bounds%endg))
     call ncd_io(ncid=ncid, varname='LABILE_P', flag='read', data=labp_g, dim1name=grlnd, readvar=readvar)
     if (.not. readvar) then
-       call endrun(msg=' ERROR: LABILE_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       this%pdatasets_present = .false.
+    else
+       do c = bounds%begc, bounds%endc
+          g = col_pp%gridcell(c)
+          this%labp_col(c) = labp_g(g)
+       end do
     end if
-    do c = bounds%begc, bounds%endc
-       g = col_pp%gridcell(c)
-       this%labp_col(c) = labp_g(g)
-    end do
     deallocate(labp_g)
 
     allocate(secp_g(bounds%begg:bounds%endg))
     call ncd_io(ncid=ncid, varname='SECONDARY_P', flag='read', data=secp_g, dim1name=grlnd, readvar=readvar)
     if (.not. readvar) then
-       call endrun(msg=' ERROR: SECONDARY_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       this%pdatasets_present = .false.
+    else
+       do c = bounds%begc, bounds%endc
+          g = col_pp%gridcell(c)
+          this%secp_col(c) = secp_g(g)
+       end do
     end if
-    do c = bounds%begc, bounds%endc
-       g = col_pp%gridcell(c)
-       this%secp_col(c) = secp_g(g)
-    end do
     deallocate(secp_g)
 
     allocate(occp_g(bounds%begg:bounds%endg))
     call ncd_io(ncid=ncid, varname='OCCLUDED_P', flag='read', data=occp_g, dim1name=grlnd, readvar=readvar)
     if (.not. readvar) then
-       call endrun(msg=' ERROR: OCCLUDED_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       this%pdatasets_present = .false.
+    else
+       do c = bounds%begc, bounds%endc
+          g = col_pp%gridcell(c)
+          this%occp_col(c) = occp_g(g)
+       end do
     end if
-    do c = bounds%begc, bounds%endc
-       g = col_pp%gridcell(c)
-       this%occp_col(c) = occp_g(g)
-    end do
     deallocate(occp_g)
 
     allocate(prip_g(bounds%begg:bounds%endg))
     call ncd_io(ncid=ncid, varname='APATITE_P', flag='read', data=prip_g, dim1name=grlnd, readvar=readvar)
     if (.not. readvar) then
-       call endrun(msg=' ERROR: APATITE_P NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       this%pdatasets_present = .false.
+    else
+       do c = bounds%begc, bounds%endc
+          g = col_pp%gridcell(c)
+          this%prip_col(c) = prip_g(g)
+       end do
     end if
-    do c = bounds%begc, bounds%endc
-       g = col_pp%gridcell(c)
-       this%prip_col(c) = prip_g(g)
-    end do
     deallocate(prip_g)  
 
     ! --------------------------------------------------------------------

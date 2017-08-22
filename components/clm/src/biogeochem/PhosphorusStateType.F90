@@ -1239,8 +1239,12 @@ contains
        end do
 
        ! soil phosphorus initialization when exit AD spinup Qing Z. 2017
-       if ( exit_spinup ) then ! AD spinup -> RG spinup
-       do c = bounds%begc, bounds%endc
+       if ( exit_spinup) then ! AD spinup -> RG spinup
+          if (.not. cnstate_vars%pdatasets_present) then
+              call endrun(msg='ERROR:: P pools are required on surface dataset'//&
+              errMsg(__FILE__, __LINE__))
+          end if
+          do c = bounds%begc, bounds%endc
              if (use_vertsoilc) then
                 do j = 1, nlevdecomp
                    ! solve equilibrium between loosely adsorbed and solution
