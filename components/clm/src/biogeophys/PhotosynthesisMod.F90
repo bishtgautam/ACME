@@ -73,6 +73,7 @@ contains
     use clm_varctl     , only : cnallocate_carbon_only 
     use pftvarcon      , only : nbrdlf_dcd_tmp_shrub, nsoybean, nsoybeanirrig, npcropmin
     use pftvarcon      , only : vcmax_np1, vcmax_np2, vcmax_np3, vcmax_np4, jmax_np1, jmax_np2, jmax_np3
+    use pftvarcon      , only : vcmax_np1_grid, vcmax_np1_grid_present
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds                         
@@ -148,7 +149,7 @@ contains
     real(r8) :: theta_ip          ! empirical curvature parameter for ap photosynthesis co-limitation
 
     ! Other
-    integer  :: f,p,c,iv          ! indices
+    integer  :: g,f,p,c,iv        ! indices
     real(r8) :: cf                ! s m**2/umol -> s/m
     real(r8) :: rsmax0            ! maximum stomatal resistance [s/m]
     real(r8) :: gb                ! leaf boundary layer conductance (m/s)
@@ -509,7 +510,12 @@ contains
                      lpc(p) = leafp(p) / (total_lai * sum_nscaler)
                      lnc(p) = min(max(lnc(p),0.25_r8),3.0_r8) ! based on doi: 10.1002/ece3.1173
                      lpc(p) = min(max(lpc(p),0.014_r8),0.85_r8) ! based on doi: 10.1002/ece3.1173
-                     vcmax25top = exp(vcmax_np1 + vcmax_np2*log(lnc(p)) + vcmax_np3*log(lpc(p)) + vcmax_np4*log(lnc(p))*log(lpc(p))) * dayl_factor(p)
+                     if (vcmax_np1_grid_present) then
+                        g = veg_pp%gridcell(p)
+                        vcmax25top = exp(vcmax_np1_grid(g) + vcmax_np2*log(lnc(p)) + vcmax_np3*log(lpc(p)) + vcmax_np4*log(lnc(p))*log(lpc(p))) * dayl_factor(p)
+                     else
+                        vcmax25top = exp(vcmax_np1 + vcmax_np2*log(lnc(p)) + vcmax_np3*log(lpc(p)) + vcmax_np4*log(lnc(p))*log(lpc(p))) * dayl_factor(p)
+                     endif
                      jmax25top = exp(jmax_np1 + jmax_np2*log(vcmax25top) + jmax_np3*log(lpc(p))) * dayl_factor(p)
                      vcmax25top = min(max(vcmax25top, 10.0_r8), 150.0_r8)
                      jmax25top = min(max(jmax25top, 10.0_r8), 250.0_r8)

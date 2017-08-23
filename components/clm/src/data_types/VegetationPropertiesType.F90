@@ -134,6 +134,10 @@ module VegetationPropertiesType
      real(r8), allocatable :: nstor(:)            !Nitrogen storage pool timescale 
      real(r8)              :: tc_stress           !Critial temperature for moisture stress
 
+     real(r8), pointer     :: vmax_plant_p_grid(:,:)        ! vmax for plant p uptake
+     real(r8), pointer     :: km_plant_p_grid(:,:)          ! km for plant p uptake
+     logical               :: vmax_plant_p_grid_present
+     logical               :: km_plant_p_grid_present
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -145,7 +149,7 @@ module VegetationPropertiesType
 contains
 
   !-----------------------------------------------------------------------
-  subroutine veg_vp_init(this)
+  subroutine veg_vp_init(this, begg, endg)
     !
     ! !USES:
     use clm_varpar, only : numrad, numpft 
@@ -170,9 +174,12 @@ contains
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
     use pftvarcon , only : bbbopt, mbbopt, nstor, tc_stress, lmrhd 
+    use pftvarcon , only : vmax_plant_p_grid, vmax_plant_p_grid_present
+    use pftvarcon , only : km_plant_p_grid, km_plant_p_grid_present
     !
     
     class (vegetation_properties_type) :: this
+    integer, intent(in)                :: begg, endg
 
     !LOCAL VARIABLES:
     integer :: m, ib, j
@@ -270,6 +277,21 @@ contains
     allocate( this%mbbopt(0:numpft))                             ; this%mbbopt(:)                =nan
     allocate( this%nstor(0:numpft))                              ; this%nstor(:)                 =nan
 
+    this%vmax_plant_p_grid_present = vmax_plant_p_grid_present
+    this%km_plant_p_grid_present   = km_plant_p_grid_present
+
+    if (vmax_plant_p_grid_present) then
+       allocate(this%vmax_plant_p_grid(begg:endg, 0:numpft))
+    else
+       nullify(this%vmax_plant_p_grid)
+    endif
+
+    if (km_plant_p_grid_present) then
+       allocate(this%km_plant_p_grid(  begg:endg, 0:numpft))
+    else
+       nullify(this%km_plant_p_grid)
+    endif
+
     do m = 0,numpft
 
        if (m <= ntree) then
@@ -364,6 +386,13 @@ contains
         this%km_plant_p(m)     = km_plant_p(m)
         this%i_vc(m)           = i_vc(m)
         this%s_vc(m)           = s_vc(m)
+
+        if (this%vmax_plant_p_grid_present) then
+           this%vmax_plant_p_grid(:,m) = vmax_plant_p_grid(:,m)
+        end if
+        if (this%km_plant_p_grid_present) then
+           this%km_plant_p_grid(  :,m) = km_plant_p_grid(  :,m)
+        end if
 
         do j = 1 , nlevdecomp
            this%decompmicc_patch_vr(m,j) = decompmicc_patch_vr(j,m)

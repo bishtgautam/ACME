@@ -628,6 +628,7 @@ contains
          km_plant_nh4                 => veg_vp%km_plant_nh4                               , &
          km_plant_no3                 => veg_vp%km_plant_no3                               , &
          km_plant_p                   => veg_vp%km_plant_p                                 , &
+         km_plant_p_grid              => veg_vp%km_plant_p_grid                            , &
          km_minsurf_p_vr              => veg_vp%km_minsurf_p_vr                            , &
          km_decomp_nh4                => veg_vp%km_decomp_nh4                              , &
          km_decomp_no3                => veg_vp%km_decomp_no3                              , &
@@ -1115,7 +1116,7 @@ contains
     
     real(r8) :: sminn_tot(bounds%begc:bounds%endc)
     !
-    integer :: c,p,l,j,k                                             !indices
+    integer :: c,p,l,j,k,g                                           !indices
     integer :: fp                                                    !lake filter pft index
     integer :: fc                                                    !lake filter column index
 
@@ -1240,6 +1241,8 @@ contains
          vmax_plant_nh4               => veg_vp%vmax_plant_nh4                             , &
          vmax_plant_no3               => veg_vp%vmax_plant_no3                             , &
          vmax_plant_p                 => veg_vp%vmax_plant_p                               , &
+         vmax_plant_p_grid            => veg_vp%vmax_plant_p_grid                          , &
+         vmax_plant_p_grid_present    => veg_vp%vmax_plant_p_grid_present                  , &
 
          nfixation_prof               => cnstate_vars%nfixation_prof_col                       , & ! Output: [real(r8) (:,:) ]                                        
 
@@ -1255,6 +1258,8 @@ contains
          km_plant_nh4                 => veg_vp%km_plant_nh4                               , &
          km_plant_no3                 => veg_vp%km_plant_no3                               , &
          km_plant_p                   => veg_vp%km_plant_p                                 , &
+         km_plant_p_grid              => veg_vp%km_plant_p_grid                            , &
+         km_plant_p_grid_present      => veg_vp%km_plant_p_grid_present                    , &
          km_minsurf_p_vr              => veg_vp%km_minsurf_p_vr                            , &
 
          decompmicc_patch_vr          => veg_vp%decompmicc_patch_vr                        , &
@@ -1568,7 +1573,12 @@ contains
                   decompmicc(c,j) = 0.0_r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
-                        e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_p(ivt(p))
+                        if (.not.km_plant_p_grid_present) then
+                           e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_p(ivt(p))
+                        else
+                           g = veg_pp%gridcell(p)
+                           e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_p_grid(p, ivt(p))
+                        endif
                         decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*veg_pp%wtcol(p)
                      end if
                   end do
@@ -1576,8 +1586,14 @@ contains
                        max(0._r8,vmax_minsurf_p_vr(isoilorder(c),j)-labilep_vr(c,j))/km_minsurf_p_vr(isoilorder(c),j)
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
-                        compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p(ivt(p)) * (1 + &
-                             solution_pconc(c,j)/km_plant_p(ivt(p)) + e_km_p))
+                        if (.not.km_plant_p_grid_present) then
+                           compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p(ivt(p)) * (1 + &
+                                solution_pconc(c,j)/km_plant_p(ivt(p)) + e_km_p))
+                        else
+                           g = veg_pp%gridcell(p)
+                           compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p_grid(g,ivt(p)) * (1 + &
+                                solution_pconc(c,j)/km_plant_p_grid(g, ivt(p)) + e_km_p))
+                        endif
                      else
                         compet_plant_p(p) = 0.0_r8
                      end if
@@ -1595,8 +1611,14 @@ contains
                         cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
                             (leafcp(ivt(p)) - leafcp(ivt(p))*(1- cp_stoich_var)),0.0_r8),1.0_r8)
 
-                        plant_pdemand_vr_patch(p,j) = vmax_plant_p(ivt(p)) * frootc(p) * froot_prof(p,j) * &
-                             cp_scalar(p) * t_scalar(c,j) * compet_plant_p(p)
+                        if (.not.vmax_plant_p_grid_present) then
+                           plant_pdemand_vr_patch(p,j) = vmax_plant_p(ivt(p)) * frootc(p) * froot_prof(p,j) * &
+                                cp_scalar(p) * t_scalar(c,j) * compet_plant_p(p)
+                        else
+                           g = veg_pp%gridcell(p)
+                           plant_pdemand_vr_patch(p,j) = vmax_plant_p_grid(g, ivt(p)) * frootc(p) * froot_prof(p,j) * &
+                                cp_scalar(p) * t_scalar(c,j) * compet_plant_p(p)
+                        endif
                         plant_pdemand_vr_patch(p,j) = max(plant_pdemand_vr_patch(p,j),0.0_r8)
                         col_plant_pdemand_vr(c,j) = col_plant_pdemand_vr(c,j) + plant_pdemand_vr_patch(p,j)*veg_pp%wtcol(p)
                      else
@@ -2384,7 +2406,12 @@ contains
                   decompmicc(c,j) = 0.0_r8
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
-                        e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_p(ivt(p))
+                        if (.not.km_plant_p_grid_present) then
+                           e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_p(ivt(p))
+                        else
+                           g = veg_pp%gridcell(p)
+                           e_km_p = e_km_p + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_p_grid(g, ivt(p))
+                        endif
                         decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*veg_pp%wtcol(p)
                      end if
                   end do
@@ -2392,8 +2419,14 @@ contains
                        max(0._r8,vmax_minsurf_p_vr(isoilorder(c),j)-labilep_vr(c,j))/km_minsurf_p_vr(isoilorder(c),j)
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
-                        compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p(ivt(p)) * (1 + &
-                             solution_pconc(c,j)/km_plant_p(ivt(p)) + e_km_p))
+                        if (.not. km_plant_p_grid_present) then
+                           compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p(ivt(p)) * (1 + &
+                                solution_pconc(c,j)/km_plant_p(ivt(p)) + e_km_p))
+                        else
+                           g = veg_pp%gridcell(p)
+                           compet_plant_p(p) = solution_pconc(c,j) / ( km_plant_p_grid(g, ivt(p)) * (1 + &
+                                solution_pconc(c,j)/km_plant_p_grid(g, ivt(p)) + e_km_p))
+                        endif
                      else
                         compet_plant_p(p) = 0.0_r8
                      end if
