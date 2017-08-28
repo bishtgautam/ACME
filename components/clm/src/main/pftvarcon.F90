@@ -245,13 +245,24 @@ module pftvarcon
   real(r8)              :: jmax_np1            !jmax~np relationship coefficient
   real(r8)              :: jmax_np2            !jmax~np relationship coefficient
   real(r8)              :: jmax_np3            !jmax~np relationship coefficient
-  ! spatiall heterogeneous parameter
-  real(r8), pointer     :: vcmax_np1_grid(:)      ! vcmax~np relationship coefficient
-  real(r8), pointer     :: vmax_plant_p_grid(:,:) ! VMAX for plant P uptake
-  real(r8), pointer     :: km_plant_p_grid(:,:)   ! KM for plant P uptake
-  logical               :: vcmax_np1_grid_present
-  logical               :: vmax_plant_p_grid_present
-  logical               :: km_plant_p_grid_present
+  ! spatially heterogeneous parameter
+  real(r8), pointer     :: vcmax_np1_grid(:)           ! vcmax~np relationship coefficient
+  real(r8), pointer     :: vcmax_np2_grid(:)           ! vcmax~np relationship coefficient
+  real(r8), pointer     :: vcmax_np3_grid(:)           ! vcmax~np relationship coefficient
+  real(r8), pointer     :: vmax_plant_p_grid(:,:)      ! VMAX for plant P uptake
+  real(r8), pointer     :: vmax_plant_nh4_grid(:,:)    ! VMAX for plant NH4 uptake
+  real(r8), pointer     :: vmax_nfix_grid(:)           ! VMAX of symbiotic N2 fixation
+  real(r8), pointer     :: vmax_ptase_vr_grid(:,:)     ! VMAX of biochemical P production
+  real(r8), pointer     :: km_plant_p_grid(:,:)        ! KM for plant P uptake
+
+  logical               :: vcmax_np1_grid_present      ! flag for vcmax_np1_grid
+  logical               :: vcmax_np2_grid_present      ! flag for vcmax_np2_grid
+  logical               :: vcmax_np3_grid_present      ! flag for vcmax_np3_grid
+  logical               :: vmax_plant_p_grid_present   ! flag for vcmax_plant_p_grid
+  logical               :: vmax_plant_nh4_grid_present ! flag for vmax_plant_nh4_grid
+  logical               :: vmax_nfix_grid_present      ! flag for vmax_nfix_grid
+  logical               :: vmax_ptase_vr_grid_present  ! flag for vmax_ptase_vr_grid
+  logical               :: km_plant_p_grid_present     ! flag for km_plant_p_grid
 
   !
   ! !PUBLIC MEMBER FUNCTIONS:
@@ -900,7 +911,39 @@ contains
        vcmax_np1_grid_present = .false.
     endif
 
-    ! 2) VMAX_PLANT_P
+    ! 2) vcmax_np2
+    call ncd_inqvid(ncid,'vcmax_np2', varid, var_desc, readv)
+    if (readv) then
+       allocate(vcmax_np2_grid(begg:endg))
+
+       call ncd_io(ncid=ncid, varname='vcmax_np2', flag='read', data=vcmax_np2_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading vcmax_np2 from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vcmax_np2_grid_present = .true.
+
+    else
+       nullify(vcmax_np2_grid)
+       vcmax_np2_grid_present = .false.
+    endif
+
+    ! 3) vcmax_np3
+    call ncd_inqvid(ncid,'vcmax_np3', varid, var_desc, readv)
+    if (readv) then
+       allocate(vcmax_np3_grid(begg:endg))
+
+       call ncd_io(ncid=ncid, varname='vcmax_np3', flag='read', data=vcmax_np3_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading vcmax_np3 from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vcmax_np3_grid_present = .true.
+
+    else
+       nullify(vcmax_np3_grid)
+       vcmax_np3_grid_present = .false.
+    endif
+
+    ! 4) VMAX_PLANT_P
     call ncd_inqvid(ncid,'VMAX_PLANT_P', varid, var_desc, readv)
     if (readv) then
        allocate(vmax_plant_p_grid(begg:endg, 0:numveg))
@@ -916,7 +959,55 @@ contains
        vmax_plant_p_grid_present = .false.
     endif
 
-    ! 3) KM_PLANT_P
+    ! 5) VMAX_PLANT_NH4
+    call ncd_inqvid(ncid,'VMAX_PLANT_NH4', varid, var_desc, readv)
+    if (readv) then
+       allocate(vmax_plant_nh4_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='VMAX_PLANT_NH4', flag='read', data=vmax_plant_nh4_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading VMAX_PLANT_NH4 from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vmax_plant_nh4_grid_present = .true.
+
+    else
+       nullify(vmax_plant_nh4_grid)
+       vmax_plant_nh4_grid_present = .false.
+    endif
+
+    ! 6) VMAX_NFIX
+    call ncd_inqvid(ncid,'VMAX_NFIX', varid, var_desc, readv)
+    if (readv) then
+       allocate(vmax_nfix_grid(begg:endg))
+
+       call ncd_io(ncid=ncid, varname='VMAX_NFIX', flag='read', data=vmax_nfix_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading VMAX_NFIX from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vmax_nfix_grid_present = .true.
+
+    else
+       nullify(vmax_nfix_grid)
+       vmax_nfix_grid_present = .false.
+    endif
+
+    ! 7) VMAX_PTASE_vr
+    call ncd_inqvid(ncid,'VMAX_PTASE_vr', varid, var_desc, readv)
+    if (readv) then
+       allocate(vmax_ptase_vr_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='VMAX_PTASE_vr', flag='read', data=vmax_ptase_vr_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading VMAX_PTASE_vr from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vmax_ptase_vr_grid_present = .true.
+
+    else
+       nullify(vmax_ptase_vr_grid)
+       vmax_ptase_vr_grid_present = .false.
+    endif
+
+    ! 8) KM_PLANT_P
     call ncd_inqvid(ncid,'KM_PLANT_P', varid, var_desc, readv)
     if (readv) then
        allocate(km_plant_p_grid(begg:endg, 0:numveg))

@@ -135,9 +135,14 @@ module VegetationPropertiesType
      real(r8)              :: tc_stress           !Critial temperature for moisture stress
 
      real(r8), pointer     :: vmax_plant_p_grid(:,:)        ! vmax for plant p uptake
+     real(r8), pointer     :: vmax_plant_nh4_grid(:,:)      ! vmax for plant nh4 uptake
+     real(r8), pointer     :: vmax_nfix_grid(:)             ! vmax of symbiotic n2 fixation
      real(r8), pointer     :: km_plant_p_grid(:,:)          ! km for plant p uptake
-     logical               :: vmax_plant_p_grid_present
-     logical               :: km_plant_p_grid_present
+
+     logical               :: vmax_plant_p_grid_present     ! flag for vmax_plant_p_grid
+     logical               :: vmax_plant_nh4_grid_present   ! flag for vmax_plant_nh4_grid
+     logical               :: vmax_nfix_grid_present        ! flag for vmax_nfix_grid
+     logical               :: km_plant_p_grid_present       ! flag for km_plant_p_grid
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -175,6 +180,8 @@ contains
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
     use pftvarcon , only : bbbopt, mbbopt, nstor, tc_stress, lmrhd 
     use pftvarcon , only : vmax_plant_p_grid, vmax_plant_p_grid_present
+    use pftvarcon , only : vmax_plant_nh4_grid, vmax_plant_nh4_grid_present
+    use pftvarcon , only : vmax_nfix_grid, vmax_nfix_grid_present
     use pftvarcon , only : km_plant_p_grid, km_plant_p_grid_present
     !
     
@@ -277,13 +284,27 @@ contains
     allocate( this%mbbopt(0:numpft))                             ; this%mbbopt(:)                =nan
     allocate( this%nstor(0:numpft))                              ; this%nstor(:)                 =nan
 
-    this%vmax_plant_p_grid_present = vmax_plant_p_grid_present
-    this%km_plant_p_grid_present   = km_plant_p_grid_present
+    this%vmax_plant_p_grid_present   = vmax_plant_p_grid_present
+    this%vmax_plant_nh4_grid_present = vmax_plant_nh4_grid_present
+    this%vmax_nfix_grid_present      = vmax_nfix_grid_present
+    this%km_plant_p_grid_present     = km_plant_p_grid_present
 
     if (vmax_plant_p_grid_present) then
        allocate(this%vmax_plant_p_grid(begg:endg, 0:numpft))
     else
        nullify(this%vmax_plant_p_grid)
+    endif
+
+    if (vmax_plant_nh4_grid_present) then
+       allocate(this%vmax_plant_nh4_grid(begg:endg, 0:numpft))
+    else
+       nullify(this%vmax_plant_nh4_grid)
+    endif
+
+    if (vmax_nfix_grid_present) then
+       allocate(this%vmax_nfix_grid(begg:endg))
+    else
+       nullify(this%vmax_nfix_grid)
     endif
 
     if (km_plant_p_grid_present) then
@@ -390,6 +411,15 @@ contains
         if (this%vmax_plant_p_grid_present) then
            this%vmax_plant_p_grid(:,m) = vmax_plant_p_grid(:,m)
         end if
+
+        if (this%vmax_plant_nh4_grid_present) then
+           this%vmax_plant_nh4_grid(:,m) = vmax_plant_nh4_grid(:,m)
+        end if
+
+        if (this%vmax_nfix_grid_present) then
+           this%vmax_nfix_grid(:) = vmax_nfix_grid(:)
+        end if
+
         if (this%km_plant_p_grid_present) then
            this%km_plant_p_grid(  :,m) = km_plant_p_grid(  :,m)
         end if

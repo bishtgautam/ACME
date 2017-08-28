@@ -1239,6 +1239,8 @@ contains
          leafn                        => nitrogenstate_vars%leafn_patch                        , &
 
          vmax_plant_nh4               => veg_vp%vmax_plant_nh4                             , &
+         vmax_plant_nh4_grid          => veg_vp%vmax_plant_nh4_grid                        , &
+         vmax_plant_nh4_grid_present  => veg_vp%vmax_plant_nh4_grid_present                , &
          vmax_plant_no3               => veg_vp%vmax_plant_no3                             , &
          vmax_plant_p                 => veg_vp%vmax_plant_p                               , &
          vmax_plant_p_grid            => veg_vp%vmax_plant_p_grid                          , &
@@ -1426,8 +1428,14 @@ contains
                         cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
                             (leafcn(ivt(p)) - leafcn(ivt(p))*(1- cn_stoich_var)),0.0_r8),1.0_r8)
 
-                        plant_ndemand_vr_patch(p,j) = vmax_plant_nh4(ivt(p))* frootc(p) * &
-                             froot_prof(p,j) * cn_scalar(p) * t_scalar(c,j) *  compet_plant_n(p) 
+                        if (.not. vmax_plant_nh4_grid_present) then
+                           plant_ndemand_vr_patch(p,j) = vmax_plant_nh4(ivt(p))* frootc(p) * &
+                                froot_prof(p,j) * cn_scalar(p) * t_scalar(c,j) *  compet_plant_n(p)
+                        else
+                           g = veg_pp%gridcell(p)
+                           plant_ndemand_vr_patch(p,j) = vmax_plant_nh4_grid(g, ivt(p))* frootc(p) * &
+                                froot_prof(p,j) * cn_scalar(p) * t_scalar(c,j) *  compet_plant_n(p)
+                        endif
 
                         plant_ndemand_vr_patch(p,j) = max(plant_ndemand_vr_patch(p,j), 0.0_r8)
                         col_plant_ndemand_vr(c,j) = col_plant_ndemand_vr(c,j) + plant_ndemand_vr_patch(p,j)*veg_pp%wtcol(p)
@@ -2140,8 +2148,14 @@ contains
                         cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
                             (leafcn(ivt(p)) - leafcn(ivt(p))*(1- cn_stoich_var)),0.0_r8),1.0_r8)
 
-                        plant_nh4demand_vr_patch(p,j) = vmax_plant_nh4(ivt(p))* frootc(p) * froot_prof(p,j) * &
-                             cn_scalar(p) * t_scalar(c,j) * compet_plant_nh4(p) 
+                        if (.not.vmax_plant_nh4_grid_present) then
+                           plant_nh4demand_vr_patch(p,j) = vmax_plant_nh4(ivt(p))* frootc(p) * froot_prof(p,j) * &
+                                cn_scalar(p) * t_scalar(c,j) * compet_plant_nh4(p)
+                        else
+                           g = veg_pp%gridcell(p)
+                           plant_nh4demand_vr_patch(p,j) = vmax_plant_nh4_grid(g, ivt(p))* frootc(p) * froot_prof(p,j) * &
+                                cn_scalar(p) * t_scalar(c,j) * compet_plant_nh4(p)
+                        endif
                         plant_no3demand_vr_patch(p,j) = vmax_plant_no3(ivt(p)) * frootc(p) * froot_prof(p,j) * &
                              cn_scalar(p) * t_scalar(c,j) * compet_plant_no3(p)
                         plant_nh4demand_vr_patch(p,j) = max(plant_nh4demand_vr_patch(p,j),0.0_r8)

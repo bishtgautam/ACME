@@ -74,6 +74,8 @@ contains
     use pftvarcon      , only : nbrdlf_dcd_tmp_shrub, nsoybean, nsoybeanirrig, npcropmin
     use pftvarcon      , only : vcmax_np1, vcmax_np2, vcmax_np3, vcmax_np4, jmax_np1, jmax_np2, jmax_np3
     use pftvarcon      , only : vcmax_np1_grid, vcmax_np1_grid_present
+    use pftvarcon      , only : vcmax_np2_grid, vcmax_np2_grid_present
+    use pftvarcon      , only : vcmax_np3_grid, vcmax_np3_grid_present
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds                         
@@ -212,6 +214,8 @@ contains
     real(r8) :: lpc(bounds%begp:bounds%endp)   ! leaf P concentration (gP leaf/m^2)
     real(r8) :: sum_nscaler              
     real(r8) :: total_lai
+
+    real(r8) :: vcmax_np1_local, vcmax_np2_local, vcmax_np3_local
     !------------------------------------------------------------------------------
 
     ! Temperature and soil water response functions
@@ -510,12 +514,31 @@ contains
                      lpc(p) = leafp(p) / (total_lai * sum_nscaler)
                      lnc(p) = min(max(lnc(p),0.25_r8),3.0_r8) ! based on doi: 10.1002/ece3.1173
                      lpc(p) = min(max(lpc(p),0.014_r8),0.85_r8) ! based on doi: 10.1002/ece3.1173
+
                      if (vcmax_np1_grid_present) then
-                        g = veg_pp%gridcell(p)
-                        vcmax25top = exp(vcmax_np1_grid(g) + vcmax_np2*log(lnc(p)) + vcmax_np3*log(lpc(p)) + vcmax_np4*log(lnc(p))*log(lpc(p))) * dayl_factor(p)
+                        g               = veg_pp%gridcell(p)
+                        vcmax_np1_local = vcmax_np1_grid(g)
                      else
-                        vcmax25top = exp(vcmax_np1 + vcmax_np2*log(lnc(p)) + vcmax_np3*log(lpc(p)) + vcmax_np4*log(lnc(p))*log(lpc(p))) * dayl_factor(p)
+                        vcmax_np1_local = vcmax_np1
                      endif
+
+                     if (vcmax_np2_grid_present) then
+                        g               = veg_pp%gridcell(p)
+                        vcmax_np2_local = vcmax_np2_grid(g)
+                     else
+                        vcmax_np2_local = vcmax_np2
+                     endif
+
+                     if (vcmax_np3_grid_present) then
+                        g               = veg_pp%gridcell(p)
+                        vcmax_np3_local = vcmax_np3_grid(g)
+                     else
+                        vcmax_np3_local = vcmax_np3
+                     endif
+
+                     vcmax25top = exp(vcmax_np1_local + vcmax_np2_local*log(lnc(p)) + &
+                          vcmax_np3_local*log(lpc(p)) + vcmax_np4*log(lnc(p))*log(lpc(p))) * dayl_factor(p)
+
                      jmax25top = exp(jmax_np1 + jmax_np2*log(vcmax25top) + jmax_np3*log(lpc(p))) * dayl_factor(p)
                      vcmax25top = min(max(vcmax25top, 10.0_r8), 150.0_r8)
                      jmax25top = min(max(jmax25top, 10.0_r8), 250.0_r8)

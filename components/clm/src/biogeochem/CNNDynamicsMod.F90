@@ -639,7 +639,7 @@ contains
     type(phosphorusstate_type)  , intent(inout) :: phosphorusstate_vars
     !
     ! !LOCAL VARIABLES:
-    integer  :: c,fc,p                     ! indices
+    integer  :: g,c,fc,p                   ! indices
     real(r8) :: r_fix                      ! carbon cost of N2 fixation, gC/gN
     real(r8) :: r_nup                      ! carbon cost of root N uptake, gC/gN
     real(r8) :: f_nodule                   ! empirical, fraction of root that is nodulated
@@ -648,16 +648,18 @@ contains
     !-----------------------------------------------------------------------
 
     associate(& 
-         ivt                   => veg_pp%itype                            , & ! input:  [integer  (:) ]  pft vegetation type  
-         cn_scalar             => cnstate_vars%cn_scalar               , &
-         cp_scalar             => cnstate_vars%cp_scalar               , &
-         vmax_nfix             => veg_vp%vmax_nfix                 , &
-         km_nfix               => veg_vp%km_nfix                   , &
-         frootc                => carbonstate_vars%frootc_patch        , &
-         nfix_to_sminn         => nitrogenflux_vars%nfix_to_sminn_col  , & ! output: [real(r8) (:)]  symbiotic/asymbiotic n fixation to soil mineral n (gn/m2/s)
-         pnup_pfrootc          => nitrogenstate_vars%pnup_pfrootc_patch, &
+         ivt                   => veg_pp%itype                                 , & ! input:  [integer  (:) ]  pft vegetation type  
+         cn_scalar             => cnstate_vars%cn_scalar                       , &
+         cp_scalar             => cnstate_vars%cp_scalar                       , &
+         vmax_nfix             => veg_vp%vmax_nfix                             , &
+         vmax_nfix_grid        => veg_vp%vmax_nfix_grid                        , &
+         vmax_nfix_grid_present=> veg_vp%vmax_nfix_grid_present                , &
+         km_nfix               => veg_vp%km_nfix                               , &
+         frootc                => carbonstate_vars%frootc_patch                , &
+         nfix_to_sminn         => nitrogenflux_vars%nfix_to_sminn_col          , & ! output: [real(r8) (:)]  symbiotic/asymbiotic n fixation to soil mineral n (gn/m2/s)
+         pnup_pfrootc          => nitrogenstate_vars%pnup_pfrootc_patch        , &
          benefit_pgpp_pleafc   => nitrogenstate_vars%benefit_pgpp_pleafc_patch , &
-         t_soi10cm_col         => temperature_vars%t_soi10cm_col       , &
+         t_soi10cm_col         => temperature_vars%t_soi10cm_col               , &
          h2osoi_vol            => waterstate_vars%h2osoi_vol_col      &
          )
 
@@ -680,8 +682,14 @@ contains
                   N2_aq = 0.78_r8 * 6.1e-4_r8 *28._r8 *1.e3_r8 * h2osoi_vol(c,4)
                   km_n2 = 5._r8 ! calibrated value
                   ! calculate n2 fixation rate for each pft and add it to column total
-                  nfix_to_sminn(c) = nfix_to_sminn(c) + vmax_nfix * frootc(p) * cn_scalar(p) *f_nodule * &
-                     N2_aq/ (N2_aq + km_n2) * veg_pp%wtcol(p)
+                  if (.not.vmax_nfix_grid_present) then
+                     nfix_to_sminn(c) = nfix_to_sminn(c) + vmax_nfix * frootc(p) * cn_scalar(p) *f_nodule * &
+                          N2_aq/ (N2_aq + km_n2) * veg_pp%wtcol(p)
+                  else
+                     g = veg_pp%gridcell(p)
+                     nfix_to_sminn(c) = nfix_to_sminn(c) + vmax_nfix_grid(g) * frootc(p) * cn_scalar(p) *f_nodule * &
+                          N2_aq/ (N2_aq + km_n2) * veg_pp%wtcol(p)
+                  endif
               end if
           end do
       end do
