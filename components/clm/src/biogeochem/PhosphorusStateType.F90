@@ -12,7 +12,7 @@ module PhosphorusStateType
   use clm_varctl             , only : use_nitrif_denitrif, use_vertsoilc, use_century_decomp
   use clm_varctl             , only : iulog, override_bgc_restart_mismatch_dump, spinup_state
   use decompMod              , only : bounds_type
-  use pftvarcon              , only : npcropmin
+  use pftvarcon              , only : npcropmin, nstor
   use CNDecompCascadeConType , only : decomp_cascade_con
   use VegetationPropertiesType         , only : veg_vp
   use abortutils             , only : endrun
@@ -24,7 +24,7 @@ module PhosphorusStateType
   ! soil phosphorus initialization Qing Z. 2017
   use pftvarcon              , only : VMAX_MINSURF_P_vr, KM_MINSURF_P_vr
   use soilorder_varcon       , only : smax, ks_sorption
-  ! 
+                        ! 
   ! !PUBLIC TYPES:
   implicit none
   save
@@ -740,6 +740,9 @@ contains
           this%deadcrootp_xfer_patch(p)    = 0._r8
           this%retransp_patch(p)           = 0._r8
           this%ppool_patch(p)              = 0._r8
+          if (nstor(veg_pp%itype(p)) .gt. 1e-6_r8) then
+              this%ppool_patch(p)          = 1.0_r8
+          end if
           this%ptrunc_patch(p)             = 0._r8
           this%dispvegp_patch(p)           = 0._r8
           this%storvegp_patch(p)           = 0._r8
@@ -1225,10 +1228,10 @@ contains
             do j = 1, nlevdecomp
 	       if ( exit_spinup ) then
 		 m = decomp_cascade_con%spinup_factor(k)
-                 if (decomp_cascade_con%spinup_factor(k) > 1) m = m  / cnstate_vars%scalaravg_col(c)
+                 if (decomp_cascade_con%spinup_factor(k) > 1 .and. nu_com .eq. 'RD') m = m  / cnstate_vars%scalaravg_col(c,j)
                else if ( enter_spinup ) then 
                  m = 1. / decomp_cascade_con%spinup_factor(k)
-		 if (decomp_cascade_con%spinup_factor(k) > 1) m = m  * cnstate_vars%scalaravg_col(c)
+		 if (decomp_cascade_con%spinup_factor(k) > 1 .and. nu_com .eq. 'RD') m = m  * cnstate_vars%scalaravg_col(c,j)
                end if 
                this%decomp_ppools_vr_col(c,j,k) = this%decomp_ppools_vr_col(c,j,k) * m
              end do
