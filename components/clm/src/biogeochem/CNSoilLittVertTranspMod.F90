@@ -18,6 +18,7 @@ module CNSoilLittVertTranspMod
   use CNNitrogenStateType    , only : nitrogenstate_type
   use PhosphorusFluxType     , only : phosphorusflux_type
   use PhosphorusStateType    , only : phosphorusstate_type
+  use clm_varctl             , only : nu_com
   !
   implicit none
   save
@@ -295,8 +296,8 @@ contains
                         if ( abs(som_adv_coef(c,j)) * spinup_term < epsilon ) then
                            adv_flux(c,j) = epsilon
                         else
-			   if (spinup_term > 1 .and. year >= 40 .and. spinup_state .eq. 1) then 
-                             adv_flux(c,j) = som_adv_coef(c,j) * spinup_term / cnstate_vars%scalaravg_col(c)
+			   if (spinup_term > 1 .and. year >= 40 .and. spinup_state .eq. 1 .and. nu_com .eq. 'RD') then 
+                             adv_flux(c,j) = som_adv_coef(c,j) * spinup_term / cnstate_vars%scalaravg_col(c,j)
  			   else
                              adv_flux(c,j) = som_adv_coef(c,j) * spinup_term
 			   end if			     
@@ -305,8 +306,8 @@ contains
                         if ( abs(som_diffus_coef(c,j)) * spinup_term < epsilon ) then
                            diffus(c,j) = epsilon
                         else
-			   if (spinup_term > 1 .and. year >= 40 .and. spinup_state .eq. 1) then 
-                             diffus(c,j) = som_diffus_coef(c,j) * spinup_term / cnstate_vars%scalaravg_col(c)
+			   if (spinup_term > 1 .and. year >= 40 .and. spinup_state .eq. 1 .and. nu_com .eq. 'RD') then 
+                             diffus(c,j) = som_diffus_coef(c,j) * spinup_term / cnstate_vars%scalaravg_col(c,j)
                            else
                              diffus(c,j) = som_diffus_coef(c,j) * spinup_term
 			   end if
