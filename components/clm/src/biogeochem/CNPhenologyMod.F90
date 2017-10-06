@@ -1165,13 +1165,17 @@ contains
                   if (onset_gddflag(p) == 1._r8 .and. onset_gdd(p) < crit_onset_gdd) onset_flag(p) = 0._r8
                end if
 
+               if (nu_com .ne. 'RD') then
+                   crit_dayl_stress = secspqtrday    !needed for BFB test
+               end if
+
                ! only allow onset if dayl > 6hrs
                if (onset_flag(p) == 1._r8 .and. dayl(g) <= crit_dayl_stress) then
                   onset_flag(p) = 0._r8
                end if
                ! Require cumulative precipitation threshold for onset 
                ! Dahlin et al., Biogeosciences 2015.
-               if (prec10(p) * 86400._r8 * 10._r8 < cumprec_onset) then
+               if (prec10(p) * 86400._r8 * 10._r8 < cumprec_onset .and. nu_com .eq. 'RD') then
                   onset_flag(p) = 0._r8
                end if
 
