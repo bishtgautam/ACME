@@ -699,6 +699,10 @@ contains
     ! If appropriate, create interpolated initial conditions
     ! ------------------------------------------------------------------------
 
+    if (use_betr) then
+       call ep_betr%set_active(bounds_proc%begc, bounds_proc%endc, col_pp%active)
+    endif
+
     if (nsrest == nsrStartup .and. finidat_interp_source /= ' ') then
 
        ! Check that finidat is not cold start - abort if it is
@@ -714,9 +718,7 @@ contains
                glc2lnd_vars%icemask_grc(bounds_clump%begg:bounds_clump%endg))
        end do
        !$OMP END PARALLEL DO
-       if(use_betr)then
-         call ep_betr%set_active(bounds_proc, col_pp)
-       endif
+
        ! Create new template file using cold start
        call restFile_write(bounds_proc, finidat_interp_dest,                               &
             atm2lnd_vars, aerosol_vars, canopystate_vars, cnstate_vars,                    &
@@ -759,9 +761,6 @@ contains
     end do
     !$OMP END PARALLEL DO
 
-    if(use_betr)then
-      call ep_betr%set_active(bounds_proc, col_pp)
-    endif 
     ! ------------------------------------------------------------------------
     ! Initialize nitrogen deposition
     ! ------------------------------------------------------------------------

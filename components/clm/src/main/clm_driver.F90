@@ -609,8 +609,10 @@ contains
 
 
        if(use_betr)then
-         call ep_betr%BeTRSetBiophysForcing(bounds_clump, col_pp, veg_pp, 1, nlevsoi, waterstate_vars=waterstate_vars)
-         call ep_betr%DiagnoseDtracerFreezeThaw(bounds_clump, filter(nc)%num_nolakec , filter(nc)%nolakec, col_pp, lun_pp)
+          call ep_betr%BeTRSetBiophysForcing(bounds_clump, col_pp, veg_pp, 1, nlevsoi, waterstate_vars=waterstate_vars)
+          call ep_betr%BeTRSetcpsCol(bounds_clump%begc, bounds_clump%endc, &
+               col_pp%snl, col_pp%zi, col_pp%dz, col_pp%z, col_pp%pfti, col_pp%pftf, col_pp%npfts)
+          call ep_betr%DiagnoseDtracerFreezeThaw(bounds_clump, filter(nc)%num_nolakec , filter(nc)%nolakec)
        endif
        ! ============================================================================
        ! update surface fluxes for new ground temperature.
