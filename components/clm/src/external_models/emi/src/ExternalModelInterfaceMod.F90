@@ -17,6 +17,7 @@ module ExternalModelInterfaceMod
   use ExternalModelPTMMod                   , only : em_ptm_type
 #endif
   use ExternalModelFATESMod                 , only : em_fates_type
+  use ExternalModelBETRMod                  , only : em_betr_type
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Pack_TemperatureType_at_Column_Level_for_EM
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Unpack_TemperatureType_at_Column_Level_from_EM
   use EMI_WaterStateType_ExchangeMod        , only : EMI_Pack_WaterStateType_at_Column_Level_for_EM
@@ -32,7 +33,8 @@ module ExternalModelInterfaceMod
   use EMI_Atm2LndType_ExchangeMod           , only : EMI_Pack_Atm2LndType_at_Grid_Level_for_EM
   use EMI_ColumnType_Exchange               , only : EMI_Pack_ColumnType_for_EM
   use EMI_Filter_Exchange                   , only : EMI_Pack_Filter_for_EM
-  use EMI_Landunit_Exchange                 , only : EMI_Pack_Landunit_for_EM
+  use EMI_Landunit_Exchange                 , only : EMI_Pack_LandunitType_for_EM
+  use EMI_PatchType_Exchange                , only : EMI_Pack_PatchType_for_EM
   !
   implicit none
   !
@@ -56,6 +58,7 @@ module ExternalModelInterfaceMod
   class(em_ptm_type)                 , pointer :: em_ptm(:)
 #endif
   class(em_fates_type)               , pointer :: em_fates
+  class(em_betr_type)                , pointer :: em_betr(:)
 
   public :: EMI_Determine_Active_EMs
   public :: EMI_Init_EM
@@ -105,6 +108,7 @@ contains
        num_em            = num_em + 1
        index_em_betr     = num_em
     endif
+    allocate(em_betr(nclumps))
 
     ! Is PFLOTRAN active?
     if (use_pflotran) then
@@ -199,8 +203,10 @@ contains
     class(emi_data_list), pointer :: e2l_init_list(:)
     integer                       :: em_stage
     integer                       :: ii, c, l
+    integer                       :: num_filter_pft
     integer                       :: num_filter_col
     integer                       :: num_filter_lun
+    integer, pointer              :: filter_pft(:)
     integer, pointer              :: filter_col(:)
     integer, pointer              :: filter_lun(:)
     integer                       :: num_e2l_filter_col
@@ -222,9 +228,23 @@ contains
        ! Note: Each thread will exchange exactly the same data between
        !       ALM and FATES
        do clump_rank = 1, nclumps
+          call get_clump_bounds(clump_rank, bounds_clump)
           iem = (index_em_betr-1)*nclumps + clump_rank
-          call EM_BETR_Populate_L2E_List(l2e_driver_list(iem))
-          call EM_BETR_Populate_E2L_List(e2l_driver_list(iem))
+
+          call l2e_init_list(clump_rank)%Init()
+          call e2l_init_list(clump_rank)%Init()
+
+          ! Fill the data list:
+          !  - Data need during the initialization
+          call em_betr(clump_rank)%Populate_L2E_Init_List(l2e_init_list(clump_rank))
+          !call em_betr(clump_rank)%Populate_E2L_Init_List(e2l_init_list(clump_rank))
+
+          !  - Data need during timestepping
+          call em_betr(clump_rank)%Populate_L2E_List(l2e_driver_list(iem))
+          call em_betr(clump_rank)%Populate_E2L_List(e2l_driver_list(iem))
+
+          call EMI_Setup_Data_List(l2e_driver_list(iem), bounds_clump)
+          call EMI_Setup_Data_List(e2l_driver_list(iem), bounds_clump)
        enddo
 
        !$OMP PARALLEL DO PRIVATE (clump_rank, iem, bounds_clump)
@@ -233,8 +253,43 @@ contains
           call get_clump_bounds(clump_rank, bounds_clump)
           iem = (index_em_betr-1)*nclumps + clump_rank
 
-          call EMI_Setup_Data_List(l2e_driver_list(iem), bounds_clump)
-          call EMI_Setup_Data_List(e2l_driver_list(iem), bounds_clump)
+          ! Allocate memory for data
+          call EMI_Setup_Data_List(l2e_init_list(clump_rank), bounds_clump)
+          !call EMI_Setup_Data_List(e2l_init_list(clump_rank), bounds_clump)
+
+          ! GB_FIX_ME: Create a temporary filter
+          num_filter_pft = bounds_clump%endp - bounds_clump%begp + 1
+          num_filter_col = bounds_clump%endc - bounds_clump%begc + 1
+          num_filter_lun = bounds_clump%endl - bounds_clump%begl + 1
+
+          allocate(filter_pft(num_filter_pft))
+          allocate(filter_col(num_filter_col))
+          allocate(filter_lun(num_filter_lun))
+
+          do ii = 1, num_filter_pft
+             filter_pft(ii) = bounds_clump%begp + ii - 1
+          enddo
+
+          do ii = 1, num_filter_col
+             filter_col(ii) = bounds_clump%begc + ii - 1
+          enddo
+
+          do ii = 1, num_filter_lun
+             filter_lun(ii) = bounds_clump%begl + ii - 1
+          enddo
+
+          ! Pack all ALM data needed by the external model
+          call EMID_Pack_ALM_Vars_for_EM( l2e_init_list(clump_rank), em_stage)
+          call EMI_Pack_PatchType_for_EM(    l2e_init_list(clump_rank), em_stage, num_filter_pft, filter_pft)
+          call EMI_Pack_ColumnType_for_EM(   l2e_init_list(clump_rank), em_stage, num_filter_col, filter_col)
+          call EMI_Pack_LandunitType_for_EM( l2e_init_list(clump_rank), em_stage, num_filter_lun, filter_lun)
+
+          ! Initialize the external model
+          call em_betr(clump_rank)%Init(l2e_init_list(clump_rank), e2l_init_list(clump_rank), &
+               iam, bounds_clump)
+
+          deallocate(filter_col)
+          deallocate(filter_lun)
        enddo
        !$OMP END PARALLEL DO
 
@@ -334,7 +389,7 @@ contains
                num_filter_col, filter_col, soilstate_vars)
           call EMI_Pack_ColumnType_for_EM(l2e_init_list(clump_rank), em_stage, &
                num_filter_col, filter_col)
-          call EMI_Pack_Landunit_for_EM(l2e_init_list(clump_rank), em_stage, &
+          call EMI_Pack_LandunitType_for_EM(l2e_init_list(clump_rank), em_stage, &
                num_filter_lun, filter_lun)
 
           ! Ensure all data needed by external model is packed
@@ -459,7 +514,7 @@ contains
                num_filter_col, filter_col, soilstate_vars)
           call EMI_Pack_ColumnType_for_EM(l2e_init_list(clump_rank), em_stage, &
                num_filter_col, filter_col)
-          call EMI_Pack_Landunit_for_EM(l2e_init_list(clump_rank), em_stage, &
+          call EMI_Pack_LandunitType_for_EM(l2e_init_list(clump_rank), em_stage, &
                num_filter_lun, filter_lun)
 
           ! Ensure all data needed by external model is packed
@@ -784,7 +839,7 @@ contains
     if ( present(num_filter_lun) .and. &
          present(filter_lun)) then
 
-       call EMI_Pack_Landunit_for_EM(l2e_driver_list(iem), em_stage, &
+       call EMI_Pack_LandunitType_for_EM(l2e_driver_list(iem), em_stage, &
             num_filter_lun, filter_lun)
 
     endif
@@ -837,8 +892,8 @@ contains
 
     select case (em_id)
     case (EM_ID_BETR)
-       call EM_BETR_Solve(em_stage, dtime, nstep, bounds_clump, l2e_driver_list(iem), &
-            e2l_driver_list(iem), bounds_clump)
+       call em_betr(clump_rank)%Solve(em_stage, dtime, nstep, clump_rank, &
+            l2e_driver_list(iem), e2l_driver_list(iem), bounds_clump)
 
     case (EM_ID_FATES)
        call em_fates%Solve(em_stage, dtime, nstep, clump_rank, l2e_driver_list(iem), &
@@ -995,5 +1050,57 @@ contains
     enddo
 
   end subroutine EMID_Verify_All_Data_Is_Set
+
+  !-----------------------------------------------------------------------
+  subroutine EMID_Pack_ALM_Vars_for_EM(data_list, em_stage)
+    !
+    ! !DESCRIPTION:
+    ! Pack data from ALM's variable for EM
+    !
+    ! !USES:
+    use ExternalModelConstants , only : L2E_VAR_MAX_PATCH_PER_COL
+    use clm_varpar             , only : max_patch_per_col
+    !
+    implicit none
+    !
+    class(emi_data_list) , intent(in) :: data_list
+    integer              , intent(in) :: em_stage
+    !
+    class(emi_data), pointer          :: cur_data
+    logical                           :: need_to_pack
+    integer                           :: istage
+    integer                           :: count
+
+    count = 0
+    cur_data => data_list%first
+    do
+       if (.not.associated(cur_data)) exit
+       count = count + 1
+
+       need_to_pack = .false.
+       do istage = 1, cur_data%num_em_stages
+          if (cur_data%em_stage_ids(istage) == em_stage) then
+             need_to_pack = .true.
+             exit
+          endif
+       enddo
+
+       if (need_to_pack) then
+
+          select case (cur_data%id)
+
+          case (L2E_VAR_MAX_PATCH_PER_COL)
+
+             cur_data%data_int_1d(1) = max_patch_per_col
+             cur_data%is_set = .true.
+
+          end select
+
+       endif
+
+       cur_data => cur_data%next
+    enddo
+
+  end subroutine EMID_Pack_ALM_Vars_for_EM
 
 end module ExternalModelInterfaceMod

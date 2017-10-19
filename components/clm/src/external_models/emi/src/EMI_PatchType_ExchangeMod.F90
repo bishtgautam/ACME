@@ -1,4 +1,5 @@
-module EMI_Landunit_Exchange
+module EMI_PatchType_Exchange
+  
   !
   use shr_kind_mod                          , only : r8 => shr_kind_r8
   use shr_log_mod                           , only : errMsg => shr_log_errMsg
@@ -10,22 +11,21 @@ module EMI_Landunit_Exchange
   implicit none
   !
   !
-  public :: EMI_Pack_LandunitType_for_EM
+  public :: EMI_Pack_PatchType_for_EM
 
 contains
-
-  !-----------------------------------------------------------------------
-  subroutine EMI_Pack_LandunitType_for_EM(data_list, em_stage, &
+!-----------------------------------------------------------------------
+  subroutine EMI_Pack_PatchType_for_EM(data_list, em_stage, &
         num_filter, filter)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM's landunit type for EM
+    ! Pack data from ALM's patch type for EM
     !
     ! !USES:
-    use ExternalModelConstants    , only : L2E_LANDUNIT_TYPE
-    use ExternalModelConstants    , only : L2E_LANDUNIT_LAKEPOINT
-    use ExternalModelConstants    , only : L2E_LANDUNIT_URBANPOINT
-    use LandunitType              , only : lun_pp
+    use ExternalModelConstants , only : L2E_PATCH_ACTIVE
+    use ExternalModelConstants , only : L2E_PATCH_TYPE
+    use ExternalModelConstants , only : L2E_PATCH_WT_COL
+    use VegetationType         , only : veg_pp                
     !
     implicit none
     !
@@ -34,15 +34,17 @@ contains
     integer              , intent(in) :: num_filter ! number of column soil points in column filter
     integer              , intent(in) :: filter(:)  ! column filter for soil points
     !
-    integer                           :: fl,l
+    integer                           :: fp,p
     class(emi_data), pointer          :: cur_data
     logical                           :: need_to_pack
     integer                           :: istage
     integer                           :: count
 
+    count = 0
     cur_data => data_list%first
     do
        if (.not.associated(cur_data)) exit
+       count = count + 1
 
        need_to_pack = .false.
        do istage = 1, cur_data%num_em_stages
@@ -56,24 +58,24 @@ contains
 
           select case (cur_data%id)
 
-          case (L2E_LANDUNIT_TYPE)
-             do fl = 1, num_filter
-                l = filter(fl)
-                cur_data%data_int_1d(l) = lun_pp%itype(l)
+          case (L2E_PATCH_ACTIVE)
+             do fp = 1, num_filter
+                p = filter(fp)
+                if (veg_pp%active(p)) cur_data%data_int_1d(p) = 1
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_LANDUNIT_LAKEPOINT)
-             do fl = 1, num_filter
-                l = filter(fl)
-                if (lun_pp%lakpoi(l)) cur_data%data_int_1d(l) = 1
+          case (L2E_PATCH_TYPE)
+             do fp = 1, num_filter
+                p = filter(fp)
+                cur_data%data_int_1d(p) = veg_pp%itype(p)
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_LANDUNIT_URBANPOINT)
-             do fl = 1, num_filter
-                l = filter(fl)
-                if (lun_pp%urbpoi(l)) cur_data%data_int_1d(l) = 1
+          case (L2E_PATCH_WT_COL)
+             do fp = 1, num_filter
+                p = filter(fp)
+                cur_data%data_real_1d(p) = veg_pp%wtcol(p)
              enddo
              cur_data%is_set = .true.
 
@@ -84,6 +86,6 @@ contains
        cur_data => cur_data%next
     enddo
 
-  end subroutine EMI_Pack_LandunitType_for_EM
+  end subroutine EMI_Pack_PatchType_for_EM
 
-end module EMI_Landunit_Exchange
+end module EMI_PatchType_Exchange
