@@ -25,10 +25,11 @@ contains
     ! Pack data from ALM temperature_vars for EM
     !
     ! !USES:
-    use ExternalModelConstants , only : L2E_STATE_T_SOI10CM
     use ExternalModelConstants , only : L2E_STATE_TSOIL_NLEVGRND
     use ExternalModelConstants , only : L2E_STATE_TSNOW
     use ExternalModelConstants , only : L2E_STATE_TH2OSFC
+    use ExternalModelConstants , only : L2E_STATE_TSOI10CM
+    use ExternalModelConstants , only : L2E_STATE_TSOIL_NLEVSOI
     use clm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
     !
     implicit none
@@ -48,9 +49,9 @@ contains
     integer                             :: count
 
     associate(& 
-         t_soi10cm => temperature_vars%t_soi10cm_col , &
          t_soisno  => temperature_vars%t_soisno_col  , &
-         t_h2osfc  => temperature_vars%t_h2osfc_col    &
+         t_h2osfc  => temperature_vars%t_h2osfc_col  , &
+         t_soi10cm => temperature_vars%t_soi10cm_col   &
          )
 
     count = 0
@@ -70,13 +71,6 @@ contains
        if (need_to_pack) then
 
           select case (cur_data%id)
-
-          case (L2E_STATE_T_SOI10CM)
-             do fc = 1, num_filter
-                c = filter(fc)
-                cur_data%data_real_1d(c) = t_soi10cm(c)
-             enddo
-             cur_data%is_set = .true.
 
           case (L2E_STATE_TSOIL_NLEVGRND)
              do fc = 1, num_filter
@@ -103,6 +97,22 @@ contains
              enddo
              cur_data%is_set = .true.
 
+          case (L2E_STATE_TSOI10CM)
+             do fc = 1, num_filter
+                c = filter(fc)
+                cur_data%data_real_1d(c) = t_soi10cm(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_STATE_TSOIL_NLEVSOI)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevsoi
+                   cur_data%data_real_2d(c,j) = t_soisno(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
           end select
 
        endif
@@ -122,7 +132,7 @@ contains
     ! Pack data from ALM temperature_vars for EM
     !
     ! !USES:
-    use ExternalModelConstants , only : L2E_STATE_T_VEG
+    use ExternalModelConstants , only : L2E_STATE_TVEG
     use clm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
     !
     implicit none
@@ -163,7 +173,7 @@ contains
 
           select case (cur_data%id)
 
-          case (L2E_STATE_T_VEG)
+          case (L2E_STATE_TVEG)
              do fp = 1, num_filter
                 p = filter(fp)
                 cur_data%data_real_1d(p) = t_veg(p)

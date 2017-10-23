@@ -34,9 +34,9 @@ module ExternalModelConstants
   integer, parameter, public :: L2E_STATE_TSOIL_NLEVGRND                         = 0001
   integer, parameter, public :: L2E_STATE_TSNOW                                  = 0002
   integer, parameter, public :: L2E_STATE_TH2OSFC                                = 0003
-  integer, parameter, public :: L2E_STATE_T_SOI10CM                              = 0004
-  integer, parameter, public :: L2E_STATE_T_SOIL_NLEVSOI                         = 0005
-  integer, parameter, public :: L2E_STATE_T_VEG                                  = 0006
+  integer, parameter, public :: L2E_STATE_TSOI10CM                               = 0004
+  integer, parameter, public :: L2E_STATE_TSOIL_NLEVSOI                          = 0005
+  integer, parameter, public :: L2E_STATE_TVEG                                   = 0006
 
   ! waterstate_type
   integer, parameter, public :: L2E_STATE_H2OSOI_LIQ_NLEVGRND                    = 0101
@@ -61,7 +61,7 @@ module ExternalModelConstants
 
   ! soilhydrology_type
   integer, parameter, public :: L2E_STATE_WTD                                    = 0201
-  integer, parameter, public :: L2E_STATE_QCHARGE                                = 0202
+  integer, parameter, public :: L2E_FLUX_QCHARGE                                 = 0202
   integer, parameter, public :: L2E_STATE_FRACICE                                = 0203
 
   ! IDs for states sent from External Model to ALM
@@ -73,6 +73,7 @@ module ExternalModelConstants
 
   ! soilhydrology_type
   integer, parameter, public :: E2L_STATE_WTD                                    = 0401  
+  integer, parameter, public :: E2L_FLUX_AQUIFER_RECHARGE                        = 0402
 
   ! soilstate_type
   integer, parameter, public :: E2L_STATE_SOIL_MATRIC_POTENTIAL                  = 0501
@@ -150,7 +151,6 @@ module ExternalModelConstants
   ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   ! waterflux_type
-  integer, parameter, public :: E2L_FLUX_AQUIFER_RECHARGE                        = 1101
   integer, parameter, public :: E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX         = 1102
 
   ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

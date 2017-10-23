@@ -25,7 +25,7 @@ contains
     !
     ! !USES:
     use ExternalModelConstants , only : L2E_STATE_WTD
-    use ExternalModelConstants , only : L2E_STATE_QCHARGE
+    use ExternalModelConstants , only : L2E_FLUX_QCHARGE
     use ExternalModelConstants , only : L2E_STATE_FRACICE
     use clm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
     !
@@ -46,9 +46,9 @@ contains
     integer                             :: count
 
     associate(& 
-         zwt      => soilhydrology_vars%zwt_col      , &
-         qflx_bot => soilhydrology_vars%qflx_bot_col , &
-         fracice  => soilhydrology_vars%fracice_col    &
+         zwt     => soilhydrology_vars%zwt_col     , &
+         qcharge => soilhydrology_vars%qcharge_col , &
+         fracice => soilhydrology_vars%fracice_col   &
          )
 
     count = 0
@@ -76,10 +76,10 @@ contains
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_STATE_QCHARGE)
+          case (L2E_FLUX_QCHARGE)
              do fc = 1, num_filter
                 c = filter(fc)
-                cur_data%data_real_1d(c) = qflx_bot(c)
+                cur_data%data_real_1d(c) = qcharge(c)
              enddo
              cur_data%is_set = .true.
 

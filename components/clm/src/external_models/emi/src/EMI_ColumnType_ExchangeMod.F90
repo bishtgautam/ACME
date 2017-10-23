@@ -1,4 +1,4 @@
-module EMI_ColumnType_Exchange
+module EMI_ColumnType_ExchangeMod
   
   !
   use shr_kind_mod                          , only : r8 => shr_kind_r8
@@ -194,5 +194,5 @@ contains
 
   end subroutine EMI_Pack_ColumnType_for_EM
 
-end module EMI_ColumnType_Exchange
+end module EMI_ColumnType_ExchangeMod
 

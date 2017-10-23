@@ -125,6 +125,13 @@ module clm_driver
   use shr_sys_mod            , only : shr_sys_flush
   use shr_log_mod            , only : errMsg => shr_log_errMsg
 
+  use ExternalModelConstants   , only : EM_BETR_BEGIN_MASS_BALANCE_STAGE
+  use ExternalModelConstants   , only : EM_BETR_PRE_DIAG_WATER_FLUX_STAGE
+  use ExternalModelConstants   , only : EM_BETR_PRE_DIAG_DTRACER_FREEZE_THAW_STAGE
+  use ExternalModelConstants   , only : EM_BETR_STEP_WITHOUT_DRAINGE_STAGE
+  use ExternalModelConstants   , only : EM_ID_BETR
+  use ExternalModelInterfaceMod, only : EMI_Driver
+
   !----------------------------------------------------------------------------
   ! bgc interface & pflotran:
   use clm_varctl             , only : use_clm_interface
@@ -290,8 +297,10 @@ contains
        if (use_betr) then
          dtime=get_step_size(); nstep=get_nstep()
          call ep_betr%SetClock(dtime= dtime, nelapstep=nstep)
-         call ep_betr%BeginMassBalanceCheck(bounds_clump)
-       endif
+
+         call EMI_Driver(EM_ID_BETR, EM_BETR_BEGIN_MASS_BALANCE_STAGE, dt = dtime, &
+              number_step = nstep, clump_rank = bounds_clump%clump_index)
+      endif
        
        if (use_cn) then
           call t_startf('begcnbal')
@@ -584,10 +593,15 @@ contains
        ! ============================================================================
        ! Determine temperatures
        ! ============================================================================
-       if(use_betr)then
+       if (use_betr) then
          call ep_betr%BeTRSetBiophysForcing(bounds_clump, col_pp, veg_pp, 1, nlevsoi, waterstate_vars=waterstate_vars)
-         call ep_betr%PreDiagSoilColWaterFlux(filter(nc)%num_nolakec , filter(nc)%nolakec)
-       endif
+         call EMI_Driver(EM_ID_BETR,                      &
+              EM_BETR_PRE_DIAG_WATER_FLUX_STAGE,          &
+              clump_rank      = bounds_clump%clump_index, &
+              num_nolakec     = filter(nc)%num_nolakec,   &
+              filter_nolakec  = filter(nc)%nolakec,       &
+              waterstate_vars = waterstate_vars)
+      endif
        ! Set lake temperature 
 
        call LakeTemperature(bounds_clump,                                             &
@@ -928,7 +942,23 @@ contains
                PlantMicKinetics_vars)
            endif
            call ep_betr%StepWithoutDrainage(bounds_clump, col_pp, veg_pp)
-         endif  !end use_betr
+           !call EMI_Driver(EM_ID_BETR,                         &
+           !     EM_BETR_STEP_WITHOUT_DRAINGE_STAGE,            &
+           !     clump_rank         = bounds_clump%clump_index, &
+           !     num_soilc          = filter(nc)%num_soilc,     &
+           !     filter_soilc       = filter(nc)%soilc,         &
+           !     carbonflux_vars    = carbonflux_vars,          &
+           !     waterstate_vars    = waterstate_vars,          &
+           !     waterflux_vars     = waterflux_vars,           &
+           !     temperature_vars   = temperature_vars,         &
+           !     soilhydrology_vars = soilhydrology_vars,       &
+           !     atm2lnd_vars       = atm2lnd_vars,             &
+           !     canopystate_vars   = canopystate_vars,         &
+           !     chemstate_vars     = chemstate_vars,           &
+           !     soilstate_vars     = soilstate_vars,           &
+           !     cnstate_vars       = cnstate_vars,             &
+           !     carbonstate_vars   = carbonstate_vars)
+        endif  !end use_betr
          
          if (use_lch4 .and. .not. is_active_betr_bgc) then
            !warning: do not call ch4 before CNAnnualUpdate, which will fail the ch4 model

@@ -101,7 +101,7 @@ module ExternalModelBETRMod
      integer :: index_l2e_state_t_soil_nlevsoi
      integer :: index_l2e_state_t_veg
 
-     integer :: index_l2e_state_qcharge
+     integer :: index_l2e_flux_qcharge
      integer :: index_l2e_state_fracice
 
      integer :: index_l2e_state_altmax
@@ -617,9 +617,9 @@ contains
     !
     ! !USES:
     use ExternalModelConstants    , only : EM_BETR_STEP_WITHOUT_DRAINGE_STAGE
-    use ExternalModelConstants    , only : L2E_STATE_T_SOI10CM
-    use ExternalModelConstants    , only : L2E_STATE_T_SOIL_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_T_VEG
+    use ExternalModelConstants    , only : L2E_STATE_TSOI10CM
+    use ExternalModelConstants    , only : L2E_STATE_TSOIL_NLEVSOI
+    use ExternalModelConstants    , only : L2E_STATE_TVEG
     !
     implicit none
     !
@@ -639,15 +639,15 @@ contains
 
     em_stages(1) = EM_BETR_STEP_WITHOUT_DRAINGE_STAGE
 
-    id = L2E_STATE_T_SOI10CM
+    id = L2E_STATE_TSOI10CM
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_t_soi10cm = index
 
-    id = L2E_STATE_T_SOIL_NLEVSOI
+    id = L2E_STATE_TSOIL_NLEVSOI
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_t_soil_nlevsoi = index
 
-    id = L2E_STATE_T_VEG
+    id = L2E_STATE_TVEG
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_t_veg = index
 
@@ -664,7 +664,7 @@ contains
     !
     ! !USES:
     use ExternalModelConstants    , only : EM_BETR_STEP_WITHOUT_DRAINGE_STAGE
-    use ExternalModelConstants    , only : L2E_STATE_QCHARGE
+    use ExternalModelConstants    , only : L2E_FLUX_QCHARGE
     use ExternalModelConstants    , only : L2E_STATE_FRACICE
     !
     implicit none
@@ -685,9 +685,9 @@ contains
 
     em_stages(1) = EM_BETR_STEP_WITHOUT_DRAINGE_STAGE
 
-    id = L2E_STATE_QCHARGE
+    id = L2E_FLUX_QCHARGE
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_l2e_state_qcharge = index
+    this%index_l2e_flux_qcharge = index
 
     id = L2E_STATE_FRACICE
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -1104,7 +1104,7 @@ contains
 
     !call this%betr%RestAlloc(begc, endc)
 
-    call this%betr%set_active(begc, endc, column_active)
+    call this%betr%set_active(begc, endc, column_active)    
 
     is_active_betr_bgc = this%betr%do_soibgc()
 
@@ -1127,6 +1127,7 @@ contains
     use ExternalModelConstants    , only : EM_BETR_BEGIN_MASS_BALANCE_STAGE
     use ExternalModelConstants    , only : EM_BETR_PRE_DIAG_WATER_FLUX_STAGE
     use ExternalModelConstants    , only : EM_BETR_PRE_DIAG_DTRACER_FREEZE_THAW_STAGE
+    use ExternalModelConstants    , only : EM_BETR_STEP_WITHOUT_DRAINGE_STAGE
     use clm_varctl                , only : iulog
     !
     implicit none
@@ -1151,6 +1152,9 @@ contains
 
     case (EM_BETR_PRE_DIAG_DTRACER_FREEZE_THAW_STAGE)
        call EM_BETR_PreDiagDtracerFreezeThaw_Solve(this, bounds_clump, l2e_list, e2l_list)
+
+    !case (EM_BETR_STEP_WITHOUT_DRAINGE_STAGE)
+    !   call EM_BETR_StepWithoutDrainge_Solve(this, bounds_clump, l2e_list, e2l_list)
 
     case default
        write(iulog,*)'EM_BETR_Solve: Unknown em_stage.'

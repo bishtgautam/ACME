@@ -402,6 +402,8 @@ contains
     use tracer_varcon         , only : is_active_betr_bgc    
     use clm_time_manager      , only : is_restart
     use ALMbetrNLMod          , only : betr_namelist_buffer
+    use ExternalModelInterfaceMod, only : EMI_Init_EM
+    use ExternalModelConstants   , only : EM_ID_BETR
     !
     ! !ARGUMENTS    
     implicit none
@@ -538,7 +540,10 @@ contains
       call ep_betr%BeTRSetFilter(maxpft_per_col=max_patch_per_col, boffline=.false.)
       call ep_betr%InitOnline(bounds_proc, lun_pp, col_pp, veg_pp, waterstate_vars, betr_namelist_buffer, masterproc)
       is_active_betr_bgc = ep_betr%do_soibgc()
-    else
+
+      call EMI_Init_EM(EM_ID_BETR, betr_namelist_buffer)
+
+   else
       allocate(ep_betr, source=create_betr_simulation_alm())
     endif
     

@@ -1035,94 +1035,7 @@ contains
     ! Add a EMID to a list
     !
     ! !USES:
-    use ExternalModelConstants    , only : L2E_STATE_TSOIL_NLEVGRND
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_LIQ_NLEVGRND
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_ICE_NLEVGRND
-    use ExternalModelConstants    , only : L2E_STATE_WTD
-    use ExternalModelConstants    , only : L2E_STATE_VSFM_PROGNOSTIC_SOILP
-    use ExternalModelConstants    , only : L2E_STATE_FRAC_H2OSFC
-    use ExternalModelConstants    , only : L2E_STATE_FRAC_INUNDATED
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_LIQ_VOL_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_ICE_VOL_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_VOL_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_AIR_VOL_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_RHO_VAP_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_RHVAP_SOI_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_SOIL_MATRIC_POTENTIAL_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_LIQ_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_ICE_NLEVSOI
-    use ExternalModelConstants    , only : L2E_STATE_TSNOW
-    use ExternalModelConstants    , only : L2E_STATE_TH2OSFC
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_LIQ_NLEVSNOW
-    use ExternalModelConstants    , only : L2E_STATE_H2OSOI_ICE_NLEVSNOW
-    use ExternalModelConstants    , only : L2E_STATE_H2OSNOW
-    use ExternalModelConstants    , only : L2E_STATE_H2OSFC
-    use ExternalModelConstants    , only : L2E_STATE_FRAC_SNOW_EFFECTIVE
-
-    use ExternalModelConstants    , only : E2L_STATE_H2OSOI_LIQ
-    use ExternalModelConstants    , only : E2L_STATE_H2OSOI_ICE
-    use ExternalModelConstants    , only : E2L_STATE_SOIL_MATRIC_POTENTIAL
-    use ExternalModelConstants    , only : E2L_STATE_WTD
-    use ExternalModelConstants    , only : E2L_STATE_VSFM_PROGNOSTIC_SOILP
-    use ExternalModelConstants    , only : E2L_STATE_FSUN
-    use ExternalModelConstants    , only : E2L_STATE_LAISUN
-    use ExternalModelConstants    , only : E2L_STATE_LAISHA
-    use ExternalModelConstants    , only : E2L_STATE_TSOIL_NLEVGRND
-    use ExternalModelConstants    , only : E2L_STATE_TSNOW_NLEVSNOW
-    use ExternalModelConstants    , only : E2L_STATE_TH2OSFC
-
-    use ExternalModelConstants    , only : L2E_FLUX_INFIL_MASS_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_VERTICAL_ET_MASS_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_DEW_MASS_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_SNOW_SUBLIMATION_MASS_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_RESTART_SNOW_LYR_DISAPPERANCE_MASS_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_DRAINAGE_MASS_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_SOLAR_DIRECT_RADDIATION
-    use ExternalModelConstants    , only : L2E_FLUX_SOLAR_DIFFUSE_RADDIATION
-    use ExternalModelConstants    , only : L2E_FLUX_ABSORBED_SOLAR_RADIATION
-    use ExternalModelConstants    , only : L2E_FLUX_SOIL_HEAT_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_SNOW_HEAT_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_H2OSFC_HEAT_FLUX
-    use ExternalModelConstants    , only : L2E_FLUX_DERIVATIVE_OF_HEAT_FLUX
-
-    use ExternalModelConstants    , only : E2L_FLUX_AQUIFER_RECHARGE
-    use ExternalModelConstants    , only : E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX
-
-    use ExternalModelConstants    , only : L2E_FILTER_HYDROLOGYC
-    use ExternalModelConstants    , only : L2E_FILTER_NUM_HYDROLOGYC
-    use ExternalModelConstants    , only : L2E_FILTER_NOLAKEC
-    use ExternalModelConstants    , only : L2E_FILTER_NUM_NOLAKEC
-    use ExternalModelConstants    , only : L2E_FILTER_NOLAKEC_AND_NOURBANC
-    use ExternalModelConstants    , only : L2E_FILTER_NUM_NOLAKEC_AND_NOURBANC
-
-    use ExternalModelConstants    , only : L2E_COLUMN_ACTIVE
-    use ExternalModelConstants    , only : L2E_COLUMN_TYPE
-    use ExternalModelConstants    , only : L2E_COLUMN_LANDUNIT_INDEX
-    use ExternalModelConstants    , only : L2E_COLUMN_ZI
-    use ExternalModelConstants    , only : L2E_COLUMN_DZ
-    use ExternalModelConstants    , only : L2E_COLUMN_Z
-    use ExternalModelConstants    , only : L2E_COLUMN_AREA
-    use ExternalModelConstants    , only : L2E_COLUMN_GRIDCELL_INDEX
-    use ExternalModelConstants    , only : L2E_COLUMN_PATCH_INDEX_BEGIN
-    use ExternalModelConstants    , only : L2E_COLUMN_PATCH_INDEX_END
-    use ExternalModelConstants    , only : L2E_COLUMN_NUM_SNOW_LAYERS
-    use ExternalModelConstants    , only : L2E_COLUMN_ZI_SNOW_AND_SOIL
-    use ExternalModelConstants    , only : L2E_COLUMN_DZ_SNOW_AND_SOIL
-    use ExternalModelConstants    , only : L2E_COLUMN_Z_SNOW_AND_SOIL
-
-    use ExternalModelConstants    , only : L2E_LANDUNIT_TYPE
-    use ExternalModelConstants    , only : L2E_LANDUNIT_LAKEPOINT
-    use ExternalModelConstants    , only : L2E_LANDUNIT_URBANPOINT
-
-    use ExternalModelConstants    , only : L2E_PARAMETER_WATSATC
-    use ExternalModelConstants    , only : L2E_PARAMETER_HKSATC
-    use ExternalModelConstants    , only : L2E_PARAMETER_BSWC
-    use ExternalModelConstants    , only : L2E_PARAMETER_SUCSATC
-    use ExternalModelConstants    , only : L2E_PARAMETER_EFFPOROSITYC
-    use ExternalModelConstants    , only : L2E_PARAMETER_CSOL
-    use ExternalModelConstants    , only : L2E_PARAMETER_TKMG
-    use ExternalModelConstants    , only : L2E_PARAMETER_TKDRY
+    use ExternalModelConstants
 
     use ExternalModelIntefaceDataDimensionMod, only : dimname_begg
     use ExternalModelIntefaceDataDimensionMod, only : dimname_endg
@@ -1188,6 +1101,110 @@ contains
     dim4_end_name  = ''
 
     select case(data_id)
+
+    case (L2E_STATE_SOIL_PH)
+       id_val         = L2E_STATE_SOIL_PH
+       name_val       = 'Soil pH'
+       long_name_val  = 'Soil pH: ALM to External Model'
+       units_val      = '[-]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevsoi
+
+    case (L2E_STATE_ALTMAX)
+       id_val         = L2E_STATE_ALTMAX
+       name_val       = 'Maximum annual depth of thaw'
+       long_name_val  = 'Maximum annual depth of thaw: ALM to External Model'
+       units_val      = '[m]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+
+    case (L2E_STATE_ALTMAX_LASTYEAR)
+       id_val         = L2E_STATE_ALTMAX_LASTYEAR
+       name_val       = 'Prior year maximum annual depth of thaw'
+       long_name_val  = 'Prior year maximum annual depth of thaw: ALM to External Model'
+       units_val      = '[m]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_STATE_LBL_RSC_H2O)
+       id_val         = L2E_STATE_LBL_RSC_H2O
+       name_val       = 'Laminar boundary layer resistance for water over dry leaf'
+       long_name_val  = 'Laminar boundary layer resistance for water over dry leaf: ALM to External Model'
+       units_val      = '[s/m]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begp
+       dim1_end_name  = dimname_endp
+
+    case (L2E_STATE_ELAI)
+       id_val         = L2E_STATE_ELAI
+       name_val       = 'Canopy one-sided leaf area index with burying by snow'
+       long_name_val  = 'Canopy one-sided leaf area index with burying by snow: ALM to External Model'
+       units_val      = '[-]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begp
+       dim1_end_name  = dimname_endp
+ 
+    case (L2E_VAR_MAX_PATCH_PER_COL)
+       id_val        = L2E_VAR_MAX_PATCH_PER_COL
+       name_val      = 'Maximum number of patches per column'
+       long_name_val = 'Maximum number of patches per column: ALM to External Model'
+       units_val     = '[-]'
+       is_int_type   = .true.
+       ndim          = 1
+       dim1_beg_name = dimname_one
+       dim1_end_name = dimname_one
+
+    case (L2E_FLUX_QCHARGE)
+       id_val         = L2E_FLUX_QCHARGE
+       name_val       = 'Aquifer recharge rate'
+       long_name_val  = 'Aquifer recharge rate: ALM to External Model'
+       units_val      = '[mm/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_STATE_FRACICE)
+       id_val         = L2E_STATE_FRACICE
+       name_val       = 'Fractional impermeability'
+       long_name_val  = 'Fractional impermeability: ALM to External Model'
+       units_val      = '[-]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
+
+    case (L2E_STATE_FORC_PBOT_DOWNSCALED)
+       id_val         = L2E_STATE_FORC_PBOT_DOWNSCALED
+       name_val       = 'Downscaled atm pressure'
+       long_name_val  = 'Downscaled atm pressure: ALM to External Model'
+       units_val      = '[Pa]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_STATE_FORC_T_DOWNSCALED)
+       id_val         = L2E_STATE_FORC_T_DOWNSCALED
+       name_val       = 'Downscaled atm temperature'
+       long_name_val  = 'Downscaled atm temperature: ALM to External Model'
+       units_val      = '[K]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
 
        ! --------------------------------------------------------------
        ! ALM-to-EM: State variables
@@ -1399,6 +1416,38 @@ contains
        ndim          = 1
        dim1_beg_name = dimname_begc
        dim1_end_name = dimname_endc
+
+    case (L2E_STATE_TSOI10CM)
+       id_val         = L2E_STATE_TSOI10CM
+       name_val       = 'Soil temperature in top 10cm'
+       long_name_val  = 'Soil temperature in top 10cm: ALM to External Model'
+       units_val      = '[K]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_STATE_TSOIL_NLEVSOI)
+       id_val         = L2E_STATE_TSOIL_NLEVSOI
+       name_val       = 'Soil temperature in nlevsoi'
+       long_name_val  = 'Soil temperature in nlevsoi: ALM to External Model'
+       units_val      = '[K]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevsoi
+ 
+    case (L2E_STATE_TVEG)
+       id_val         = L2E_STATE_TVEG
+       name_val       = 'Vegetation temperature'
+       long_name_val  = 'Vegetation temperature: ALM to External Model'
+       units_val      = '[K]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begp
+       dim1_end_name  = dimname_endp
 
     case (L2E_STATE_H2OSOI_LIQ_NLEVSNOW)
        id_val        = L2E_STATE_H2OSOI_LIQ_NLEVSNOW
@@ -1656,6 +1705,174 @@ contains
        dim2_beg_name = dimname_one
        dim2_end_name = dimname_nlevgrnd
 
+    case (L2E_FLUX_INFL)
+       id_val         = L2E_FLUX_INFL
+       name_val       = 'Infiltration'
+       long_name_val  = 'Infiltration: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_TOTDRAIN)
+       id_val         = L2E_FLUX_TOTDRAIN
+       name_val       = 'Drainage sink'
+       long_name_val  = 'Drainage sink: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_GROSS_EVAP_SOIL)
+       id_val         = L2E_FLUX_GROSS_EVAP_SOIL
+       name_val       = 'Gross evaporation from soil'
+       long_name_val  = 'Gross evaporation from soil: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_GROSS_INFL_SOIL)
+       id_val         = L2E_FLUX_GROSS_INFL_SOIL
+       name_val       = 'Gross evaporation infiltration'
+       long_name_val  = 'Gross evaporation infiltration: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_SURF)
+       id_val         = L2E_FLUX_SURF
+       name_val       = 'Surface runoff'
+       long_name_val  = 'Surface runoff: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_DEW_GRND)
+       id_val         = L2E_FLUX_DEW_GRND
+       name_val       = 'Surface dew added to ground'
+       long_name_val  = 'Surface dew added to ground: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_DEW_SNOW)
+       id_val         = L2E_FLUX_DEW_SNOW
+       name_val       = 'Surface dew added to snow pacK'
+       long_name_val  = 'Surface dew added to snow pacK: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_SUB_SNOW_VOL)
+       id_val         = L2E_FLUX_SUB_SNOW_VOL
+       name_val       = 'Sublimation vol from snow pack'
+       long_name_val  = 'Sublimation vol from snow pack: ALM to External Model'
+       units_val      = '[mm H2O]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_SUB_SNOW)
+       id_val         = L2E_FLUX_SUB_SNOW
+       name_val       = 'sublimation rate from snow pack'
+       long_name_val  = 'sublimation rate from snow pack: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_H2OSFC2TOPSOI)
+       id_val         = L2E_FLUX_H2OSFC2TOPSOI
+       name_val       = 'Rate of surface standing water entering top soil'
+       long_name_val  = 'Rate of surface standing water entering top soil: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_SNOW2TOPSOI)
+       id_val         = L2E_FLUX_SNOW2TOPSOI
+       name_val       = 'Rate of snow entering top soil'
+       long_name_val  = 'Rate of snow entering top soil: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_ROOTSOI)
+       id_val         = L2E_FLUX_ROOTSOI
+       name_val       = 'Root and soil water exchange'
+       long_name_val  = 'Root and soil water exchange: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
+ 
+    case (L2E_FLUX_ADV)
+       id_val         = L2E_FLUX_ADV
+       name_val       = 'Advective flux across different soil layer interfaces'
+       long_name_val  = 'Advective flux across different soil layer interfaces: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_zero
+       dim2_end_name  = dimname_nlevgrnd
+ 
+    case (L2E_FLUX_DRAIN_VR)
+       id_val         = L2E_FLUX_DRAIN_VR
+       name_val       = 'liquid water losted as drainage'
+       long_name_val  = 'liquid water losted as drainage: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
+ 
+    case (L2E_FLUX_TRAN_VEG)
+       id_val         = L2E_FLUX_TRAN_VEG
+       name_val       = 'vegetation transpiration'
+       long_name_val  = 'vegetation transpiration: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 1
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+ 
+    case (L2E_FLUX_ROOTSOI_FRAC)
+       id_val         = L2E_FLUX_ROOTSOI_FRAC
+       name_val       = 'Root soil fraction'
+       long_name_val  = 'Root soil fraction: ALM to External Model'
+       units_val      = '[mm H2O/s]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begp
+       dim1_end_name  = dimname_endp
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevsoi
+
     case (L2E_FLUX_SOLAR_DIRECT_RADDIATION)
        id_val        = L2E_FLUX_SOLAR_DIRECT_RADDIATION
        name_val      = 'Direct beam solar radiation'
@@ -1819,6 +2036,39 @@ contains
        dim1_end_name = dimname_one
 
        ! --------------------------------------------------------------
+       ! ALM-to-ELM: Patch variables
+       ! --------------------------------------------------------------
+    case (L2E_PATCH_ACTIVE)
+       id_val        = L2E_PATCH_ACTIVE
+       name_val      = 'Patch active'
+       long_name_val = 'Patch active: ALM to External Model'
+       units_val     = '[-]'
+       is_int_type   = .true.
+       ndim          = 1
+       dim1_beg_name = dimname_begp
+       dim1_end_name = dimname_endp
+
+    case (L2E_PATCH_TYPE)
+       id_val        = L2E_PATCH_TYPE
+       name_val      = 'Patch type'
+       long_name_val = 'Patch type: ALM to External Model'
+       units_val     = '[-]'
+       is_int_type   = .true.
+       ndim          = 1
+       dim1_beg_name = dimname_begp
+       dim1_end_name = dimname_endp
+
+    case (L2E_PATCH_WT_COL)
+       id_val        = L2E_PATCH_WT_COL
+       name_val      = 'Patch weight to column'
+       long_name_val = 'Patch weight: ALM to External Model'
+       units_val     = '[-]'
+       is_real_type  = .true.
+       ndim          = 1
+       dim1_beg_name = dimname_begp
+       dim1_end_name = dimname_endp
+
+       ! --------------------------------------------------------------
        ! ALM-to-ELM: Column variables
        ! --------------------------------------------------------------
     case (L2E_COLUMN_ACTIVE)
@@ -1973,6 +2223,16 @@ contains
        dim2_beg_name = dimname_nlevsno_plus_one
        dim2_end_name = dimname_nlevgrnd
 
+    case (L2E_COLUMN_NUM_PATCH)
+       id_val        = L2E_COLUMN_NUM_PATCH
+       name_val      = 'Column number of patches'
+       long_name_val = 'Column number of patches: ALM to External Model'
+       units_val     = '[-]'
+       is_int_type   = .true.
+       ndim          = 1
+       dim1_beg_name = dimname_begc
+       dim1_end_name = dimname_endc
+
        ! --------------------------------------------------------------
        ! ALM-to-ELM: Landunit variables
        ! --------------------------------------------------------------
@@ -2104,6 +2364,78 @@ contains
        dim1_end_name = dimname_endc
        dim2_beg_name = dimname_one
        dim2_end_name = dimname_nlevgrnd
+
+    case (L2E_PARAMETER_CELLORG)
+       id_val         = L2E_PARAMETER_CELLORG
+       name_val       = 'Organic matter'
+       long_name_val  = 'Organic matter: ALM to External Model'
+       units_val      = '[-]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
+ 
+    case (L2E_PARAMETER_CELLCLAY)
+       id_val         = L2E_PARAMETER_CELLCLAY
+       name_val       = 'Clay value'
+       long_name_val  = 'Clay value: ALM to External Model'
+       units_val      = '[%]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
+ 
+    case (L2E_PARAMETER_CELLSAND)
+       id_val         = L2E_PARAMETER_CELLSAND
+       name_val       = 'Sand value'
+       long_name_val  = 'Sand value: ALM to External Model'
+       units_val      = '[%]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
+ 
+    case (L2E_PARAMETER_BD)
+       id_val         = L2E_PARAMETER_BD
+       name_val       = 'Bulk density'
+       long_name_val  = 'Bulk density: ALM to External Model'
+       units_val      = '[kg/m^3]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
+ 
+    case (L2E_PARAMETER_WATFC)
+       id_val         = L2E_PARAMETER_WATFC
+       name_val       = 'Volumetric soil water at field capacity'
+       long_name_val  = 'Volumetric soil water at field capacity: ALM to External Model'
+       units_val      = '[m^3/m^3]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begc
+       dim1_end_name  = dimname_endc
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
+ 
+    case (L2E_PARAMETER_ROOTFR_PATCH)
+       id_val         = L2E_PARAMETER_ROOTFR_PATCH
+       name_val       = 'Fraction of roots in each soil layer'
+       long_name_val  = 'Fraction of roots in each soil layer: ALM to External Model'
+       units_val      = '[-]'
+       is_real_type   = .true.
+       ndim           = 2
+       dim1_beg_name  = dimname_begp
+       dim1_end_name  = dimname_endp
+       dim2_beg_name  = dimname_one
+       dim2_end_name  = dimname_nlevgrnd
 
     case default
        write(iulog,*)'Unknown EMID id = ',data_id
