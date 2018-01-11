@@ -610,7 +610,7 @@ contains
 
     do fc = 1, num_nolakec
        c = filter_nolakec(fc)
-       heat(c) = heat_dry_mass(c) + heat_ice(c) + heat_liquid(c) + latent_heat_liquid(c)
+       heat(c) = heat_dry_mass(c) + heat_ice(c) + heat_liquid(c) + latent_heat_liquid(c)*0._r8
     end do
 
     end associate
@@ -727,7 +727,7 @@ contains
 
     do fc = 1, num_lakec
        c = filter_lakec(fc)
-       heat(c) = heat_dry_mass(c) + heat_ice(c) + heat_liquid(c) + latent_heat_liquid(c)
+       heat(c) = heat_dry_mass(c) + heat_ice(c) + heat_liquid(c) + latent_heat_liquid(c)*0._r8
     end do
 
     end associate
@@ -904,7 +904,7 @@ contains
     real(r8), intent(in) :: cv    ! heat capacity [J/(m^2 K)]
     !-----------------------------------------------------------------------
 
-    heat = cv*(temp - heat_base_temp)
+    heat = cv*(temp - heat_base_temp*0._r8)/1.e6_r8
 
   end function TempToHeat
 
