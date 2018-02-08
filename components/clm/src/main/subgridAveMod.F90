@@ -906,7 +906,7 @@ contains
   end subroutine c2l_2d
 
   !-----------------------------------------------------------------------
-  subroutine c2g_1d(bounds, carr, garr, c2l_scale_type, l2g_scale_type)
+  subroutine c2g_1d(bounds, carr, garr, c2l_scale_type, l2g_scale_type, debug_option)
     !
     ! !DESCRIPTION:
     ! Perfrom subgrid-average from columns to gridcells.
@@ -925,7 +925,11 @@ contains
     real(r8) :: scale_c2l(bounds%begc:bounds%endc) ! scale factor
     real(r8) :: scale_l2g(bounds%begl:bounds%endl) ! scale factor
     real(r8) :: sumwt(bounds%begg:bounds%endg)     ! sum of weights
+    logical, optional, intent(in) :: debug_option
+    logical :: debug
     !------------------------------------------------------------------------
+    debug = .false.
+    if (present(debug_option)) debug = debug_option
 
     ! Enforce expected array sizes
     SHR_ASSERT_ALL((ubound(carr) == (/bounds%endc/)), errMsg(__FILE__, __LINE__))
@@ -996,6 +1000,7 @@ contains
           found = .true.
           index = g
        else if (sumwt(g) /= 0._r8) then
+          if (.not.debug) &
           garr(g) = garr(g)/sumwt(g)
        end if
     end do
@@ -1007,7 +1012,7 @@ contains
   end subroutine c2g_1d
 
   !-----------------------------------------------------------------------
-  subroutine c2g_2d(bounds, num2d, carr, garr, c2l_scale_type, l2g_scale_type)
+  subroutine c2g_2d(bounds, num2d, carr, garr, c2l_scale_type, l2g_scale_type,debug_option)
     !
     ! !DESCRIPTION:
     ! Perfrom subgrid-average from columns to gridcells.
@@ -1027,6 +1032,8 @@ contains
     real(r8) :: scale_c2l(bounds%begc:bounds%endc)     ! scale factor
     real(r8) :: scale_l2g(bounds%begl:bounds%endl)     ! scale factor
     real(r8) :: sumwt(bounds%begg:bounds%endg)         ! sum of weights
+    logical, optional, intent(in) :: debug_option
+    logical :: debug
     !------------------------------------------------------------------------
 
     ! Enforce expected array sizes

@@ -237,13 +237,13 @@ contains
          carr = liquid_mass_col(bounds%begc:bounds%endc), &
          garr = liquid_mass(bounds%begg:bounds%endg), &
          c2l_scale_type = 'unity', &
-         l2g_scale_type = 'unity')
+         l2g_scale_type = 'unity', debug_option=.true.)
 
     call c2g(bounds, &
          carr = ice_mass_col(bounds%begc:bounds%endc), &
          garr = ice_mass(bounds%begg:bounds%endg), &
          c2l_scale_type = 'unity', &
-         l2g_scale_type = 'unity')
+         l2g_scale_type = 'unity', debug_option=.true.)
 
   end subroutine dyn_water_content
 
@@ -317,19 +317,19 @@ contains
          carr = heat_col(bounds%begc:bounds%endc), &
          garr = heat_grc(bounds%begg:bounds%endg), &
          c2l_scale_type = 'unity', &
-         l2g_scale_type = 'unity')
+         l2g_scale_type = 'unity',debug_option=.true.)
 
     call c2g(bounds, &
          carr = heat_liquid_col(bounds%begc:bounds%endc), &
          garr = heat_liquid_grc(bounds%begg:bounds%endg), &
          c2l_scale_type = 'unity', &
-         l2g_scale_type = 'unity')
+         l2g_scale_type = 'unity',debug_option=.true.)
 
     call c2g(bounds, &
          carr = cv_liquid_col(bounds%begc:bounds%endc), &
          garr = cv_liquid_grc(bounds%begg:bounds%endg), &
          c2l_scale_type = 'unity', &
-         l2g_scale_type = 'unity')
+         l2g_scale_type = 'unity',debug_option=.true.)
 
     do g = bounds%begg, bounds%endg
        if (cv_liquid_grc(g) > 0._r8) then
