@@ -10,6 +10,7 @@ module pftvarcon
   use shr_log_mod , only : errMsg => shr_log_errMsg
   use abortutils  , only : endrun
   use clm_varpar  , only : mxpft, numrad, ivis, inir
+  use clm_varpar  , only : numveg, nlevgrnd
   use clm_varctl  , only : iulog, use_cndv, use_vertsoilc
   use clm_varpar  , only : nlevdecomp_full, nsoilorder
   use clm_varctl  , only : nu_com
@@ -250,6 +251,25 @@ module pftvarcon
   ! Hydrology
   real(r8)              :: rsub_top_globalmax
 
+  ! spatially heterogeneous parameter
+  real(r8), pointer     :: vcmax_np1_grid(:,:)         ! vcmax~np relationship coefficient
+  real(r8), pointer     :: vcmax_np2_grid(:,:)         ! vcmax~np relationship coefficient
+  real(r8), pointer     :: vcmax_np3_grid(:,:)         ! vcmax~np relationship coefficient
+  real(r8), pointer     :: vmax_plant_p_grid(:,:)      ! VMAX for plant P uptake
+  real(r8), pointer     :: vmax_plant_nh4_grid(:,:)    ! VMAX for plant NH4 uptake
+  real(r8), pointer     :: vmax_nfix_grid(:,:)         ! VMAX of symbiotic N2 fixation
+  real(r8), pointer     :: vmax_ptase_grid(:,:)        ! VMAX of biochemical P production
+  real(r8), pointer     :: km_plant_p_grid(:,:)        ! KM for plant P uptake
+
+  logical               :: vcmax_np1_grid_present      ! flag for vcmax_np1_grid
+  logical               :: vcmax_np2_grid_present      ! flag for vcmax_np2_grid
+  logical               :: vcmax_np3_grid_present      ! flag for vcmax_np3_grid
+  logical               :: vmax_plant_p_grid_present   ! flag for vcmax_plant_p_grid
+  logical               :: vmax_plant_nh4_grid_present ! flag for vmax_plant_nh4_grid
+  logical               :: vmax_nfix_grid_present      ! flag for vmax_nfix_grid
+  logical               :: vmax_ptase_grid_present     ! flag for vmax_ptase_grid
+  logical               :: km_plant_p_grid_present     ! flag for km_plant_p_grid
+
   !
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: pftconrd ! Read and initialize vegetation (PFT) constants
@@ -264,7 +284,7 @@ module pftvarcon
 contains
 
   !-----------------------------------------------------------------------
-  subroutine pftconrd
+  subroutine pftconrd(begg, endg)
     !
     ! !DESCRIPTION:
     ! Read and initialize vegetation (PFT) constants
@@ -273,14 +293,19 @@ contains
     use fileutils ,  only : getfil
     use ncdio_pio ,  only : ncd_io, ncd_pio_closefile, ncd_pio_openfile, file_desc_t, &
                             ncd_inqdid, ncd_inqdlen
+    use ncdio_pio  , only : var_desc_t, ncd_inqvid
     use clm_varctl,  only : paramfile, use_ed
     use clm_varctl,  only : use_crop, use_dynroot
+    use clm_varctl,  only : fsurdat
     use clm_varcon,  only : tfrz
+    use clm_varcon,  only : grlnd
     use spmdMod   ,  only : masterproc
 
     !
     ! !ARGUMENTS:
     implicit none
+    !
+    integer :: begg, endg
     !
     ! !REVISION HISTORY:
     ! Created by Gordon Bonan
@@ -294,6 +319,8 @@ contains
     integer :: dimid            ! netCDF dimension id
     integer :: npft             ! number of pfts on pft-physiology file
     logical :: readv            ! read variable in or not
+    type(var_desc_t) :: var_desc! variable descriptor for name
+    integer :: varid
     character(len=32) :: subname = 'pftconrd'              ! subroutine name
     !
     ! Expected PFT names: The names expected on the paramfile file and the order they are expected to be in.
@@ -886,6 +913,142 @@ contains
        
     call ncd_pio_closefile(ncid)
 
+    !
+    ! Read spatially heterogeneous parameters
+    !
+
+    call getfil (fsurdat, locfn, 0)
+    call ncd_pio_openfile (ncid, locfn, 0)
+
+    ! 1) vcmax_np1
+    call ncd_inqvid(ncid,'vcmax_np1', varid, var_desc, readv)
+    if (readv) then
+       allocate(vcmax_np1_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='vcmax_np1', flag='read', data=vcmax_np1_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading vcmax_np1 from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vcmax_np1_grid_present = .true.
+
+    else
+       nullify(vcmax_np1_grid)
+       vcmax_np1_grid_present = .false.
+    endif
+
+    ! 2) vcmax_np2
+    call ncd_inqvid(ncid,'vcmax_np2', varid, var_desc, readv)
+    if (readv) then
+       allocate(vcmax_np2_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='vcmax_np2', flag='read', data=vcmax_np2_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading vcmax_np2 from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vcmax_np2_grid_present = .true.
+
+    else
+       nullify(vcmax_np2_grid)
+       vcmax_np2_grid_present = .false.
+    endif
+
+    ! 3) vcmax_np3
+    call ncd_inqvid(ncid,'vcmax_np3', varid, var_desc, readv)
+    if (readv) then
+       allocate(vcmax_np3_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='vcmax_np3', flag='read', data=vcmax_np3_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading vcmax_np3 from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vcmax_np3_grid_present = .true.
+
+    else
+       nullify(vcmax_np3_grid)
+       vcmax_np3_grid_present = .false.
+    endif
+
+    ! 4) VMAX_PLANT_P
+    call ncd_inqvid(ncid,'VMAX_PLANT_P', varid, var_desc, readv)
+    if (readv) then
+       allocate(vmax_plant_p_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='VMAX_PLANT_P', flag='read', data=vmax_plant_p_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading VMAX_PLANT_P from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vmax_plant_p_grid_present = .true.
+
+    else
+       nullify(vmax_plant_p_grid)
+       vmax_plant_p_grid_present = .false.
+    endif
+
+    ! 5) VMAX_PLANT_NH4
+    call ncd_inqvid(ncid,'VMAX_PLANT_NH4', varid, var_desc, readv)
+    if (readv) then
+       allocate(vmax_plant_nh4_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='VMAX_PLANT_NH4', flag='read', data=vmax_plant_nh4_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading VMAX_PLANT_NH4 from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vmax_plant_nh4_grid_present = .true.
+
+    else
+       nullify(vmax_plant_nh4_grid)
+       vmax_plant_nh4_grid_present = .false.
+    endif
+
+    ! 6) VMAX_NFIX
+    call ncd_inqvid(ncid,'VMAX_NFIX', varid, var_desc, readv)
+    if (readv) then
+       allocate(vmax_nfix_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='VMAX_NFIX', flag='read', data=vmax_nfix_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading VMAX_NFIX from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vmax_nfix_grid_present = .true.
+
+    else
+       nullify(vmax_nfix_grid)
+       vmax_nfix_grid_present = .false.
+    endif
+
+    ! 7) VMAX_PTASE
+    call ncd_inqvid(ncid,'VMAX_PTASE', varid, var_desc, readv)
+    if (readv) then
+       allocate(vmax_ptase_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='VMAX_PTASE', flag='read', data=vmax_ptase_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading VMAX_PTASE from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       vmax_ptase_grid_present = .true.
+
+    else
+       nullify(vmax_ptase_grid)
+       vmax_ptase_grid_present = .false.
+    endif
+
+    ! 8) KM_PLANT_P
+    call ncd_inqvid(ncid,'KM_PLANT_P', varid, var_desc, readv)
+    if (readv) then
+       allocate(km_plant_p_grid(begg:endg, 0:numveg))
+
+       call ncd_io(ncid=ncid, varname='KM_PLANT_P', flag='read', data=km_plant_p_grid, dim1name=grlnd, readvar=readv)
+       if (.not. readv) then
+          call endrun(msg=' ERROR while reading KM_PLANT_P from surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       km_plant_p_grid_present = .true.
+
+    else
+       nullify(km_plant_p_grid)
+       km_plant_p_grid_present = .false.
+    endif
+
+    call ncd_pio_closefile(ncid)
 
     do i = 0, mxpft
 
@@ -969,6 +1132,15 @@ contains
     end if
 
     if (masterproc) then
+       write(iulog,*) 'Spatially heterogeneous parameters:'
+       write(iulog,*) ' vcmax_np1_grid_present      = ',vcmax_np1_grid_present
+       write(iulog,*) ' vcmax_np2_grid_present      = ',vcmax_np2_grid_present
+       write(iulog,*) ' vcmax_np3_grid_present      = ',vcmax_np3_grid_present
+       write(iulog,*) ' vmax_plant_p_grid_present   = ',vmax_plant_p_grid_present
+       write(iulog,*) ' vmax_plant_nh4_grid_present = ',vmax_plant_nh4_grid_present
+       write(iulog,*) ' vmax_nfix_grid_present      = ',vmax_nfix_grid_present
+       write(iulog,*) ' vmax_ptase_grid_present     = ',vmax_ptase_grid_present
+       write(iulog,*) ' km_plant_p_grid_present     = ',km_plant_p_grid_present
        write(iulog,*) 'Successfully read PFT physiological data'
        write(iulog,*)
     end if
