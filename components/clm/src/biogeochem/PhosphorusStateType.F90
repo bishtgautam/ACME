@@ -1774,7 +1774,6 @@ contains
            this%solutionp_col(c) + &
            this%labilep_col(c) + &
            this%secondp_col(c) + &
-           this%seedp_col(c)    + &
            this%ptrunc_col(c)
    end do
 
