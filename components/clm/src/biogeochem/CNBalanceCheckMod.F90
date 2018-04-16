@@ -357,7 +357,7 @@ contains
          ! Fluxes to product pools are included in column-level outputs: the product
          ! pools are not included in totcolc, so are outside the system with respect to
          ! these balance checks
-         col_noutputs = col_noutputs + &
+         col_noutputs(c) = col_noutputs(c) + &
               hrv_deadstemn_to_prod10n(c) + hrv_deadstemn_to_prod100n(c)
 
          if (is_active_betr_bgc)then
@@ -572,7 +572,7 @@ contains
          ! Fluxes to product pools are included in column-level outputs: the product
          ! pools are not included in totcolc, so are outside the system with respect to
          ! these balance checks
-         col_poutputs = col_poutputs + &
+         col_poutputs(c) = col_poutputs(c) + &
               hrv_deadstemp_to_prod10p(c) + hrv_deadstemp_to_prod100p(c)
 
          ! calculate the total column-level phosphorus balance error for this time step
