@@ -3194,12 +3194,12 @@ contains
             long_name='conversion C flux (immediate loss to atm), dribbled throughout the year', &
             ptr_gcell=this%dwt_conv_cflux_dribbled_grc)
 
-       this%dwt_prod10c_gain_patch(begc:endc) = spval
+       this%dwt_prod10c_gain_patch(begp:endp) = spval
        call hist_addfld1d (fname='DWT_PROD10C_GAIN_PATCH', units='gC/m^2/s', &
             avgflag='A', long_name='landcover change-driven addition to 10-yr wood product pool', &
             ptr_col=this%dwt_prod10c_gain_patch, default='inactive')
 
-       this%dwt_prod100c_gain_patch(begc:endc) = spval
+       this%dwt_prod100c_gain_patch(begp:endp) = spval
        call hist_addfld1d (fname='DWT_PROD100C_GAIN_PATCH', units='gC/m^2/s', &
             avgflag='A', long_name='landcover change-driven addition to 100-yr wood product pool', &
             ptr_col=this%dwt_prod100c_gain_patch, default='inactive')
@@ -3302,7 +3302,7 @@ contains
        this%dwt_prod100c_gain_grc(begg:endg) = spval
        call hist_addfld1d (fname='DWT_PROD100C_GAIN_GRC', units='gC/m^2/s', &
             avgflag='A', long_name='landcover change-driven addition to 100-yr wood product pool', &
-            ptr_col=this%dwt_prod100c_gain_patch, default='inactive')
+            ptr_col=this%dwt_prod100c_gain_grc, default='inactive')
 
        this%hrv_deadstemc_to_prod10c_grc(begg:endg) = spval
        call hist_addfld1d (fname='HRV_DEADSTEM_TO_PROD10C_GRC', units='gC/m^2/s', &
@@ -3526,15 +3526,15 @@ contains
             long_name='C13 conversion C flux (immediate loss to atm), dribbled throughout the year', &
             ptr_gcell=this%dwt_conv_cflux_dribbled_grc)
 
-       this%dwt_prod10c_gain_patch(begc:endc) = spval
+       this%dwt_prod10c_gain_patch(begp:endp) = spval
        call hist_addfld1d (fname='C13_DWT_PROD10C_GAIN_PATCH', units='gC13/m^2/s', &
             avgflag='A', long_name='C13 landcover change-driven addition to 10-yr wood product pool', &
             ptr_col=this%dwt_prod10c_gain_patch, default='inactive')
 
-       this%dwt_prod100c_gain_patch(begc:endc) = spval
+       this%dwt_prod100c_gain_patch(begp:endp) = spval
        call hist_addfld1d (fname='C13_DWT_PROD100C_GAIN_PATCH', units='gC13/m^2/s', &
             avgflag='A', long_name='C13 landcover change-driven addition to 100-yr wood product pool', &
-            ptr_col=this%dwt_prod10c_gain_patch, default='inactive')
+            ptr_col=this%dwt_prod100c_gain_patch, default='inactive')
 
        this%dwt_slash_cflux_col(begc:endc) = spval
        call hist_addfld1d (fname='C13_DWT_SLASH_CFLUX', units='gC13/m^2/s', &
@@ -3649,7 +3649,7 @@ contains
        this%dwt_prod100c_gain_grc(begg:endg) = spval
        call hist_addfld1d (fname='C13_DWT_PROD100C_GAIN_GRC', units='gC13/m^2/s', &
             avgflag='A', long_name='C13 landcover change-driven addition to 100-yr wood product pool', &
-            ptr_col=this%dwt_prod100c_gain_patch, default='inactive')
+            ptr_col=this%dwt_prod100c_gain_grc, default='inactive')
 
        this%hrv_deadstemc_to_prod10c_grc(begg:endg) = spval
        call hist_addfld1d (fname='C13_HRV_DEADSTEM_TO_PROD10C_GRC', units='gC13/m^2/s', &
@@ -3841,12 +3841,12 @@ contains
             long_name='C14 conversion C flux (immediate loss to atm), dribbled throughout the year', &
             ptr_gcell=this%dwt_conv_cflux_dribbled_grc)
 
-       this%dwt_prod10c_gain_patch(begc:endc) = spval
+       this%dwt_prod10c_gain_patch(begp:endp) = spval
        call hist_addfld1d (fname='C14_DWT_PROD10C_GAIN_PATCH', units='gC14/m^2/s', &
             avgflag='A', long_name='C14 landcover change-driven addition to 10-yr wood product pool', &
             ptr_col=this%dwt_prod10c_gain_patch, default='inactive')
 
-       this%dwt_prod100c_gain_patch(begc:endc) = spval
+       this%dwt_prod100c_gain_patch(begp:endp) = spval
        call hist_addfld1d (fname='C14_DWT_PROD100C_GAIN_PATCH', units='gC14/m^2/s', &
             avgflag='A', long_name='C14 landcover change-driven addition to 100-yr wood product pool', &
             ptr_col=this%dwt_prod10c_gain_patch, default='inactive')
@@ -3964,7 +3964,7 @@ contains
        this%dwt_prod100c_gain_grc(begg:endg) = spval
        call hist_addfld1d (fname='C14_DWT_PROD100C_GAIN_GRC', units='gC14/m^2/s', &
             avgflag='A', long_name='C14 landcover change-driven addition to 100-yr wood product pool', &
-            ptr_col=this%dwt_prod100c_gain_patch, default='inactive')
+            ptr_col=this%dwt_prod100c_gain_grc, default='inactive')
 
        this%hrv_deadstemc_to_prod10c_grc(begg:endg) = spval
        call hist_addfld1d (fname='C14_HRV_DEADSTEM_TO_PROD10C_GRC', units='gC14/m^2/s', &
