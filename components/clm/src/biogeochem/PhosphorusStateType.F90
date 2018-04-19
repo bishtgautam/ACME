@@ -111,6 +111,9 @@ module PhosphorusStateType
      real(r8), pointer :: begpb_col                    (:)     ! col phosphorus mass, beginning of time step (gP/m**2)
      real(r8), pointer :: endpb_col                    (:)     ! col phosphorus mass, end of time step (gP/m**2)
      real(r8), pointer :: errpb_col                    (:)     ! colphosphorus balance error for the timestep (gP/m**2)
+     real(r8), pointer :: begpb_grc                    (:)     ! grid cell phosphorus mass, beginning of time step (gP/m**2)
+     real(r8), pointer :: endpb_grc                    (:)     ! grid cell phosphorus mass, end of time step (gP/m**2)
+     real(r8), pointer :: errpb_grc                    (:)     ! grid cell phosphorus balance error for the timestep (gP/m**2)
 
      ! debug
      real(r8), pointer :: totpftp_beg_col              (:)
@@ -262,6 +265,10 @@ contains
     allocate(this%endpb_col   (begc:endc));     this%endpb_col   (:) =nan
     allocate(this%errpb_patch (begp:endp));     this%errpb_patch (:) =nan
     allocate(this%errpb_col   (begc:endc));     this%errpb_col   (:) =nan 
+
+    allocate(this%begpb_grc   (begg:endg));     this%begpb_grc   (:) =nan
+    allocate(this%endpb_grc   (begg:endg));     this%endpb_grc   (:) =nan
+    allocate(this%errpb_grc   (begg:endg));     this%errpb_grc   (:) =nan
 
     ! debug
     allocate(this%totpftp_beg_col    (begc:endc)); this%totpftp_beg_col      (:) = nan
