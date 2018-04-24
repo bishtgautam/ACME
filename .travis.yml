@@ -25,3 +25,7 @@ matrix:
     - env:
       os: osx
 
+script:
+  - echo "hi"
+
+
