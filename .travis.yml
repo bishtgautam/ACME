@@ -1,0 +1,27 @@
+language: 
+
+before_script:
+  - echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+
+sudo: required
+
+dist: trusty # Ubuntu 14.04.
+
+compiler:
+  - gcc
+
+install: sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
+
+addons:
+  apt:
+    packages:
+      - cmake
+
+matrix:
+  include:
+    - env:
+      os: linux
+
+    - env:
+      os: osx
+
