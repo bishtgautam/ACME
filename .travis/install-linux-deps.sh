@@ -31,6 +31,9 @@ gcc   --version
 echo "mpicc   --version"
 mpicc   --version
 
+echo "mpicc.openmpi --version"
+mpicc.openmpi --version
+
 nc-config --all
 
 #cd cime/scripts
