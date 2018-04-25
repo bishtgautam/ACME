@@ -24,8 +24,9 @@ which g++
 which gfortran
 which ncdump
 ls -l /usr/bin/mpi*
-ls -l /usr/bin/g*
-gcc   --version
+ls -l /usr/bin/gcc*
+gcc --version
+mpicc --version
 nc-config --all
 
 #cd cime/scripts
