@@ -16,6 +16,7 @@ ln -s /usr/local/lib/gcc/5/libgfortran.a /usr/local/lib/libgfortran.a
 which gcc
 which g++
 which ncdump
+gcc --version
 
 ls -l /usr/local/bin/mpi*
 
