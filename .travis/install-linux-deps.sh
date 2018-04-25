@@ -28,10 +28,10 @@ ls -l /usr/bin/gcc*
 echo "gcc   --version"
 gcc   --version
 
-echo "gcc   --version"
-gcc   --version
+echo "mpicc   --version"
+mpicc   --version
 
-nc-config --all
+#nc-config --all
 
 #cd cime/scripts
 #
