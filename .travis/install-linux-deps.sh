@@ -26,3 +26,4 @@ cd f19_g16.ICLM45
 ./case.setup
 ./case.build
 cat bld/gptl.bldlog.*
+cat bld/lnd.bldlog*

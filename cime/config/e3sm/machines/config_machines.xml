@@ -3026,6 +3026,7 @@
     <CCSM_CPRNC>$CCSMROOT/tools/cprnc/build/cprnc</CCSM_CPRNC>
     <SUPPORTED_BY>jayesh at mcs dot anl dot gov</SUPPORTED_BY>
     <GMAKE_J>4</GMAKE_J>
+    <GMAKE>make</GMAKE>
     <MAX_TASKS_PER_NODE>4</MAX_TASKS_PER_NODE>
     <MAX_MPITASKS_PER_NODE>2</MAX_MPITASKS_PER_NODE>
     <mpirun mpilib="default">
@@ -3036,7 +3037,6 @@
     </mpirun>
     <environment_variables>
        <env name="NETCDF_PATH"></env>
-       <GMAKE>make</GMAKE>
     </environment_variables>
 </machine>
 
