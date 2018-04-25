@@ -19,6 +19,7 @@ export PETSC_DIR=$PWD
 --with-debug=$DEBUG  \
 --with-shared-libraries=0 \
 --download-hdf5 \
+--download-netcdf \
 --download-metis \
 --download-parmetis \
 --download-fblaslapack \
