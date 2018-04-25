@@ -59,7 +59,7 @@ module ExternalModelInterfaceDataMod
      real(r8), pointer :: data_real_3d(:,:,:)
      real(r8), pointer :: data_real_4d(:,:,:,:)
 
-     type(emi_data), pointer :: next
+     class(emi_data), pointer :: next
 
    contains
 
@@ -84,15 +84,15 @@ module ExternalModelInterfaceDataMod
   end type emi_data
 
   type emi_data_ptr
-     type(emi_data), pointer :: data
+     class(emi_data), pointer :: data
   end type emi_data_ptr
 
   type, public :: emi_data_list
 
      integer                     :: num_data
 
-     type(emi_data)    , pointer :: first
-     type(emi_data)    , pointer :: last
+     class(emi_data)    , pointer :: first
+     class(emi_data)    , pointer :: last
      type(emi_data_ptr), pointer :: data_ptr(:)
 
    contains
