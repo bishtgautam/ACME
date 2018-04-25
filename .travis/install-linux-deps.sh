@@ -4,7 +4,7 @@ sudo apt-get update -qq
 sudo apt-get install -y cmake gcc gfortran g++
 sudo apt-get install -y netcdf-bin libnetcdf-dev
 sudo apt-get install -y libopenmpi-dev openmpi-bin
-sudo apt-get install -y libxml2 libxml2-dev libxml2-utils libxml-perl xml-core XML-LibXML
+sudo apt-get install -y libxml2 libxml2-dev libxml2-utils libxml-perl xml-core gnulib
 
 which gcc
 which g++
@@ -14,7 +14,7 @@ ls /usr/bin/mpi*
 
 cd cime/scripts
 
-./create_newcase --case f19_g16.ICLM45 --res f19_g16 --compset ICLM45 --mach linux-generic
+./create_newcase --case f19_g16.ICLM45 --res f19_g16 --compset ICLM45 --mach travis-ci-linux --compiler gnu
 
 cd f19_g16.ICLM45
 ./xmlchange DATM_CLMNCEP_YR_END=1972

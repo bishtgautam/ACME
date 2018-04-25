@@ -28,4 +28,8 @@ matrix:
 script:
   - echo "hi"
 
+notifications:
+  email:
+    on_success: never
+    on_failure: never
 
