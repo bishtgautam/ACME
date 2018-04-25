@@ -1577,4 +1577,27 @@ lude </CFLAGS>
 	<ADD_CFLAGS MODEL="csm_share"> -std=c99 </ADD_CFLAGS>
 </compiler>
 
+<compiler MACH="travis-ci-osx" COMPILER="gnu">
+  <ADD_CPPDEFS> -DFORTRANUNDERSCORE -DNO_R16</ADD_CPPDEFS>
+  <ADD_CFLAGS compile_threaded="true"> -fopenmp </ADD_CFLAGS>
+  <ADD_FFLAGS compile_threaded="true"> -fopenmp </ADD_FFLAGS>
+  <ADD_LDFLAGS compile_threaded="true"> -fopenmp </ADD_LDFLAGS>
+  <FIXEDFLAGS>  -ffixed-form </FIXEDFLAGS>
+  <FREEFLAGS> -ffree-form </FREEFLAGS>
+  <ADD_FFLAGS DEBUG="TRUE"> -g -Wall </ADD_FFLAGS>
+  <FFLAGS> -O -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none </FFLAGS>
+  <FFLAGS_NOOPT> -O0 </FFLAGS_NOOPT>
+  <FC_AUTO_R8> -fdefault-real-8 </FC_AUTO_R8>
+  <SFC> /usr/bin/gfortran </SFC>
+  <SCC> /usr/bin/gcc </SCC>
+  <SCXX> /usr/bin/g++ </SCXX>
+  <MPIFC> /usr/bin/mpif90 </MPIFC>
+  <MPICC> /usr/bin/mpicc  </MPICC>
+  <MPICXX> /usr/bin/mpicxx </MPICXX>
+  <CXX_LINKER>FORTRAN</CXX_LINKER>
+  <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
+  <NETCDF_PATH>/usr/local</NETCDF_PATH>
+  <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -framework Accelerate</ADD_SLIBS>
+</compiler>
+
 </config_compilers>
