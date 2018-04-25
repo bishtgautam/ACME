@@ -10,7 +10,8 @@ which gcc
 which g++
 which gfortran
 which ncdump
-ls /usr/bin/mpi*
+ls -l /usr/bin/mpi*
+gcc --version
 
 cd cime/scripts
 
@@ -24,6 +25,7 @@ cd f19_g16.ICLM45
 ./xmlchange NTASKS=1
 ./xmlchange DIN_LOC_ROOT=$PWD
 ./case.setup
+cat Macros.make
 ./case.build
 cat bld/gptl.bldlog.*
 cat bld/lnd.bldlog*
