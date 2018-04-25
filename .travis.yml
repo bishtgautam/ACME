@@ -8,7 +8,11 @@ sudo: required
 dist: trusty # Ubuntu 14.04.
 
 compiler:
-  - gcc
+  - gcc-5
+
+before_install:
+  # Force gcc-5
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then if [ "$CC" == "gcc" ]; then export CC=gcc-5; export CXX=g++-5; export FC=gfortran-5; fi; fi
 
 install: sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
 
