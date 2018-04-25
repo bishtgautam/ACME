@@ -14,9 +14,16 @@ matrix:
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - sourceline: 'ppa:ubuntu-toolchain-r/test'
+            - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.8 main'
+              key_url: http://apt.llvm.org/llvm-snapshot.gpg.key
+            - sourceline: 'ppa:dzombie/ccache'
           packages:
-            - g++-6
+            - ccache
+            - gcc-5
+            - g++-5
+            - gfortran-5
+            - libstdc++-5-dev
 
     - env:
       os: osx
