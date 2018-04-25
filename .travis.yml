@@ -27,4 +27,4 @@ script:
   - echo CC=${CC}
   - echo CXX=${CXX}
   - echo FC=${FC}
-  - .travis/install-petsc.sh
+#  - .travis/install-petsc.sh
