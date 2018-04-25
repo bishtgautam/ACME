@@ -33,7 +33,7 @@ implicit none
   type emi_data_dimension_type
      character(len=24) :: name ! String labelling this IO type
 
-     type(emi_data_dimension_type), pointer :: next
+     class(emi_data_dimension_type), pointer :: next
    contains
      procedure, public :: SetName      => EMID_Dim_SetName
      procedure, public :: GetDimValue  => EMID_Dim_GetDimValue
