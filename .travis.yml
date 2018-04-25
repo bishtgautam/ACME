@@ -33,4 +33,5 @@ script:
   - echo FC=${FC}
   - .travis/install-petsc.sh
   - ls -l ${PWD}/petsc/petsc-arch/bin/
-  - ./${PWD}/petsc/petsc-arch/bin/nc-config --all
+  - ${PWD}/petsc/petsc-arch/bin/nc-config --all
+  - ls -l ${PWD}/petsc/petsc-arch/externalpackages
