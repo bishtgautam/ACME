@@ -3036,6 +3036,7 @@
     </mpirun>
     <environment_variables>
        <env name="NETCDF_PATH"></env>
+       <GMAKE>make</GMAKE>
     </environment_variables>
 </machine>
 
