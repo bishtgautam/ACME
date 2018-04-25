@@ -9,7 +9,7 @@ dist: trusty # Ubuntu 14.04.
 
 matrix:
   include:
-    - env:
+    - env: CC=gcc-5; export CXX=g++-5; export FC=gfortran-5
       os: linux
       addons:
         apt:
@@ -28,7 +28,11 @@ matrix:
     - env:
       os: osx
 
-install: sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
+install: 
+  - echo `which $CC`
+  - echo `which $CXX`
+  - echo `which $FC`
+  - sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
 
 script:
   - echo "hi"
