@@ -7,16 +7,6 @@ sudo: required
 
 dist: trusty # Ubuntu 14.04.
 
-compiler:
-  - gcc
-
-install: sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
-
-addons:
-  apt:
-    packages:
-      - cmake
-
 matrix:
   include:
     - env:
@@ -30,6 +20,8 @@ matrix:
 
     - env:
       os: osx
+
+install: sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
 
 script:
   - echo "hi"

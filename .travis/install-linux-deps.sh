@@ -11,8 +11,9 @@ which g++
 which gfortran
 which ncdump
 ls -l /usr/bin/mpi*
-gcc --version
-
+ls -l /usr/bin/g*
+gcc   --version
+gcc-6 --version
 cd cime/scripts
 
 ./create_newcase --case f19_g16.ICLM45 --res f19_g16 --compset ICLM45 --mach travis-ci-linux --compiler gnu
