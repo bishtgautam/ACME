@@ -26,6 +26,7 @@ which ncdump
 ls -l /usr/bin/mpi*
 ls -l /usr/bin/g*
 gcc   --version
+nc-config --all
 
 #cd cime/scripts
 #
