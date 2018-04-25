@@ -21,6 +21,10 @@ matrix:
   include:
     - env:
       os: linux
+      addons:
+        apt:
+          packages:
+            - g++-5
 
     - env:
       os: osx
