@@ -1603,12 +1603,12 @@ lude </CFLAGS>
 <compiler MACH="travis-ci-linux" COMPILER="gnu" >
   <ADD_GPTL_CPPDEFS> -DHAVE_VPRINTF -DHAVE_GETTIMEOFDAY -DHAVE_BACKTRACE </ADD_GPTL_CPPDEFS>
   <ADD_SLIBS> -L/usr/lib/x86_64-linux-gnu/lib/ -lnetcdff -lnetcdf -lcurl -llapack -lblas </ADD_SLIBS>
-  <SFC>/usr/bin/gfortran</SFC>
-  <SCC>/usr/bin/gcc</SCC>
-  <SCXX>/usr/bin/g++</SCXX>
-  <MPIFC>/usr/bin/mpif90</MPIFC>
-  <MPICC>/usr/bin/mpicc</MPICC>
-  <MPICXX>/usr/bin/mpic++</MPICXX>
+  <SFC>gfortran-5</SFC>
+  <SCC>gcc-5</SCC>
+  <SCXX>g++-5</SCXX>
+  <MPIFC>/home/travis/build/bishtgautam/E3SM/petsc/petsc-arch/bin/mpif90</MPIFC>
+  <MPICC>/home/travis/build/bishtgautam/E3SM/petsc/petsc-arch/bin/mpicc</MPICC>
+  <MPICXX>/home/travis/build/bishtgautam/E3SM/petsc/petsc-arch/bin/mpicxx</MPICXX>
   <NETCDF_PATH>/usr</NETCDF_PATH>
 </compiler>
 
