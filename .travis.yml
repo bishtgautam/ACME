@@ -49,9 +49,15 @@ script:
   - ./xmlchange EXEROOT=${PWD}/bld
   - ./xmlchange NTASKS=1
   - ./xmlchange DIN_LOC_ROOT=$PWD
+  - ./xmlchange MPILIB=mpich
   - ./case.setup
   - cat Macros.make
   - ./case.build
   - cat bld/gptl.bldlog.*
   - cat bld/pio.bldlog.*
   - cat bld/lnd.bldlog*
+
+notifications:
+  email:
+    on_success: never
+    on_failure: never
