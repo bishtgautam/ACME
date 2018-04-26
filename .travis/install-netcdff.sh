@@ -32,4 +32,6 @@ ls -l $PETSC_DIR/$PETSC_ARCH/include
 
 ls -l $PETSC_DIR/$PETSC_ARCH/lib/lib*
 
+ls -l $PETSC_DIR/$PETSC_ARCH/lib/libnetcdff.a
+
 nm $PETSC_DIR/$PETSC_ARCH/lib/libnetcdff.a | grep deflate
