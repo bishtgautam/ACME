@@ -18,10 +18,7 @@ export PETSC_DIR=$PWD
 --with-clanguage=c \
 --with-debug=$DEBUG  \
 --with-shared-libraries=0 \
---download-hdf5 \
 --download-netcdf \
---download-metis \
---download-parmetis \
 --download-fblaslapack \
 --download-mpich=http://www.mpich.org/static/downloads/3.2/mpich-3.2.tar.gz
 
