@@ -15,7 +15,7 @@ export F77=$PETSC_DIR/$PETSC_ARCH/bin/mpif77
 export CC=$PETSC_DIR/$PETSC_ARCH/bin/mpicc
 
 export LD_LIBRARY_PATH=$PETSC_DIR/$PETSC_ARCH/lib:$LD_LIBRARY_PATH
-export CPPFLAGS="-I$PETSC_DIR/$PETSC_ARCH/include" 
+export CPPFLAGS="-DgFortran -I$PETSC_DIR/$PETSC_ARCH/include"
 export CPPFLAGS="-I$PETSC_DIR/$PETSC_ARCH/include" 
 export LDFLAGS=-L$PETSC_DIR/$PETSC_ARCH/lib
 ./configure --prefix=$PETSC_DIR/$PETSC_ARCH
