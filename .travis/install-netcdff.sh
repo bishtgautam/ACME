@@ -27,3 +27,9 @@ make install
 
 cd $PETSC_DIR/$PETSC_ARCH/bin
 ./nc-config --all
+
+ls -l $PETSC_DIR/$PETSC_ARCH/include
+
+ls -l $PETSC_DIR/$PETSC_ARCH/lib/lib*
+
+nm $PETSC_DIR/$PETSC_ARCH/lib/libnetcdff.a | grep deflate
