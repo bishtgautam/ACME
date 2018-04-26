@@ -1,7 +1,7 @@
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 sudo apt-get update -qq
 sudo apt-get install -y cmake gcc-5 gfortran-5 g++-5 liblapack-dev libopenmpi-dev
-sudo apt-get install -y libnetcdf-dev netcdf-bin
+#sudo apt-get install -y libnetcdf-dev netcdf-bin
 sudo apt-get install -y libxml2 libxml2-dev libxml2-utils libxml-perl xml-core gnulib
 
 #sudo apt-get install -y libmpich-dev mpich
@@ -25,16 +25,6 @@ which gfortran
 which ncdump
 ls -l /usr/bin/mpi*
 ls -l /usr/bin/gcc*
-echo "gcc   --version"
-gcc   --version
-
-echo "mpicc   --version"
-mpicc   --version
-
-echo "mpicc.openmpi --version"
-mpicc.openmpi --version
-
-nc-config --all
 
 #cd cime/scripts
 #

@@ -29,3 +29,5 @@ export PETSC_DIR=$PWD
 make all
 make test
 
+cd $PETSC_DIR/$PETSC_ARCH/bin
+./nc-config --all

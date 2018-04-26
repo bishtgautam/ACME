@@ -25,3 +25,5 @@ make check
 make install
 
 
+cd $PETSC_DIR/$PETSC_ARCH/bin
+./nc-config --all
