@@ -37,3 +37,4 @@ script:
   - ls -l ${PWD}/petsc/petsc-arch/externalpackages
   - head -20 ${PWD}/petsc/petsc-arch/externalpackages/mpich-3.2/config.log
   - head -20 ${PWD}/petsc/petsc-arch/externalpackages/netcdf-4.4.1/config.log
+  - .travis/install-netcdff.sh
