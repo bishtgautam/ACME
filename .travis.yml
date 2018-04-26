@@ -31,6 +31,8 @@ script:
   - echo CC=${CC}
   - echo CXX=${CXX}
   - echo FC=${FC}
+  - $CC --version
+  - $FC --version
   - .travis/install-petsc.sh
   - ls -l ${PWD}/petsc/petsc-arch/bin/
   - ${PWD}/petsc/petsc-arch/bin/nc-config --all
