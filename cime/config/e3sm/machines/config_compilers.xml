@@ -1609,7 +1609,7 @@ lude </CFLAGS>
   <MPIFC>/home/travis/build/bishtgautam/E3SM/petsc/petsc-arch/bin/mpif90</MPIFC>
   <MPICC>/home/travis/build/bishtgautam/E3SM/petsc/petsc-arch/bin/mpicc</MPICC>
   <MPICXX>/home/travis/build/bishtgautam/E3SM/petsc/petsc-arch/bin/mpicxx</MPICXX>
-  <NETCDF_PATH>/usr</NETCDF_PATH>
+  <NETCDF_PATH>/home/travis/build/bishtgautam/E3SM/petsc/petsc-arch</NETCDF_PATH>
 </compiler>
 
 </config_compilers>
