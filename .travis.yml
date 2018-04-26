@@ -38,3 +38,17 @@ script:
   - head -20 ${PWD}/petsc/petsc-arch/externalpackages/mpich-3.2/config.log
   - head -20 ${PWD}/petsc/petsc-arch/externalpackages/netcdf-4.4.1/config.log
   - .travis/install-netcdff.sh
+  - cd cime/scripts
+  - ./create_newcase --case f19_g16.ICLM45 --res f19_g16 --compset ICLM45 --mach travis-ci-linux --compiler gnu
+  - cd f19_g16.ICLM45
+  - ./xmlchange DATM_CLMNCEP_YR_END=1972
+  - ./xmlchange PIO_TYPENAME=netcdf
+  - ./xmlchange RUNDIR=${PWD}/run
+  - ./xmlchange EXEROOT=${PWD}/bld
+  - ./xmlchange NTASKS=1
+  - ./xmlchange DIN_LOC_ROOT=$PWD
+  - ./case.setup
+  - cat Macros.make
+  - ./case.build
+  - cat bld/gptl.bldlog.*
+  - cat bld/lnd.bldlog*
