@@ -30,4 +30,5 @@ make all
 make test
 
 cd $PETSC_DIR/$PETSC_ARCH/bin
-./nc-config --all
+ls -l 
+#./nc-config --all
