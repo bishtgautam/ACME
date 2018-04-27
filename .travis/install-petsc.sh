@@ -24,7 +24,8 @@ export PETSC_ARCH=petsc-arch
 --download-metis \
 --download-parmetis \
 --download-fblaslapack \
---download-mpich=http://www.mpich.org/static/downloads/3.2/mpich-3.2.tar.gz
+--download-openmpi
+#--download-mpich=http://www.mpich.org/static/downloads/3.2/mpich-3.2.tar.gz
 
 
 make all
