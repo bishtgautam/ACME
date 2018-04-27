@@ -31,3 +31,7 @@ ls -l /usr/local/bin/mpi*
 
 .travis/install-petsc.sh
 
+ls -l ${PWD}/petsc/petsc-arch/bin/
+${PWD}/petsc/petsc-arch/bin/nc-config --all
+.travis/install-netcdff.sh
+
