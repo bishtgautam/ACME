@@ -16,24 +16,16 @@ which g++
 which ncdump
 gcc --version
 
+ls -l /usr/local/bin/g*
+
 ls -l /usr/local/bin/mpi*
-ls -l /usr/local/lib/libnetcdf*
+#ls -l /usr/local/lib/libnetcdf*
 
-/usr/local/bin/mpif90 --version
-
-which nc-config
-
-nc-config --all
-
-nc-config --flibs
-
-.travis/install-petsc.sh
-
-ls -l ${PWD}/petsc/petsc-arch/bin/
-${PWD}/petsc/petsc-arch/bin/nc-config --all
-ls -l ${PWD}/petsc/petsc-arch/externalpackages
-head -20 ${PWD}/petsc/petsc-arch/externalpackages/mpich-3.2/config.log
-head -20 ${PWD}/petsc/petsc-arch/externalpackages/netcdf-4.4.1/config.log
-.travis/install-netcdff.sh
-
+#/usr/local/bin/mpif90 --version
+#
+#which nc-config
+#
+#nc-config --all
+#
+#nc-config --flibs
 
