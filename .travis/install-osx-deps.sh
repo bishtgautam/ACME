@@ -39,5 +39,5 @@ alias gmake=make
 cat Macros.make
 cat env_mach_specific.xml
 ./case.build
-cat bld/gptl.bldlog.*
+cat bld/e3sm.bldlog.*
 
