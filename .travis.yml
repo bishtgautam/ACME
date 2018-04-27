@@ -10,10 +10,6 @@ dist: trusty # Ubuntu 14.04.
 compiler:
   - gcc-5
 
-before_install:
-  # Force gcc-5
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then if [ "$CC" == "gcc" ]; then export CC=gcc-5; export CXX=g++-5; export FC=gfortran-5; fi; fi
-
 install: sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
 
 addons:
@@ -24,10 +20,9 @@ addons:
 matrix:
   include:
     # linux + gcc-5 + DEBUG=0
-    - env: DEBUG=0; CC=gcc-5; export CXX=g++-5; export FC=gfortran-5
-      os: linux
+    #- env: DEBUG=0; CC=gcc-5; export CXX=g++-5; export FC=gfortran-5
+    #  os: linux
 
-    # linux + gcc-5 + DEBUG=0
     - env: DEBUG=0; CC=gcc-5; export CXX=g++-5; export FC=gfortran-5
       os: osx
 
@@ -35,31 +30,6 @@ script:
   - echo CC=${CC}
   - echo CXX=${CXX}
   - echo FC=${FC}
-  - $CC --version
-  - $FC --version
-  - .travis/install-petsc.sh
-  - ls -l ${PWD}/petsc/petsc-arch/bin/
-  - ${PWD}/petsc/petsc-arch/bin/nc-config --all
-  - ls -l ${PWD}/petsc/petsc-arch/externalpackages
-  - head -20 ${PWD}/petsc/petsc-arch/externalpackages/mpich-3.2/config.log
-  - head -20 ${PWD}/petsc/petsc-arch/externalpackages/netcdf-4.4.1/config.log
-  - .travis/install-netcdff.sh
-  - cd cime/scripts
-  - ./create_newcase --case f19_g16.ICLM45 --res f19_g16 --compset ICLM45 --mach travis-ci-$TRAVIS_OS_NAME --compiler gnu
-  - cd f19_g16.ICLM45
-  - ./xmlchange DATM_CLMNCEP_YR_END=1972
-  - ./xmlchange PIO_TYPENAME=netcdf
-  - ./xmlchange RUNDIR=${PWD}/run
-  - ./xmlchange EXEROOT=${PWD}/bld
-  - ./xmlchange NTASKS=1
-  - ./xmlchange DIN_LOC_ROOT=$PWD
-  - ./xmlchange MPILIB=mpich
-  - ./case.setup
-  - cat Macros.make
-  - ./case.build
-  - cat bld/gptl.bldlog.*
-  - cat bld/pio.bldlog.*
-  - cat bld/lnd.bldlog*
 
 notifications:
   email:

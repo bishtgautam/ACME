@@ -1588,12 +1588,12 @@ lude </CFLAGS>
   <FFLAGS> -O -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none </FFLAGS>
   <FFLAGS_NOOPT> -O0 </FFLAGS_NOOPT>
   <FC_AUTO_R8> -fdefault-real-8 </FC_AUTO_R8>
-  <SFC> /usr/local/bin/gfortran-5 </SFC>
-  <SCC> /usr/local/bin/gcc-5 </SCC>
-  <SCXX> /usr/local/bin/g++-5 </SCXX>
-  <MPIFC> /usr/local/bin/mpif90-5 </MPIFC>
-  <MPICC> /usr/local/bin/mpicc-5  </MPICC>
-  <MPICXX> /usr/local/bin/mpicxx-5 </MPICXX>
+  <SFC> /usr/local/bin/gfortran </SFC>
+  <SCC> /usr/local/bin/gcc </SCC>
+  <SCXX> /usr/local/bin/g++ </SCXX>
+  <MPIFC> /usr/local/bin/mpif90 </MPIFC>
+  <MPICC> /usr/local/bin/mpicc  </MPICC>
+  <MPICXX> /usr/local/bin/mpicxx </MPICXX>
   <CXX_LINKER>FORTRAN</CXX_LINKER>
   <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
   <NETCDF_PATH>/usr/local</NETCDF_PATH>

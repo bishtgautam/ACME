@@ -2,8 +2,8 @@
 brew update
 brew install git
 brew upgrade cmake
-brew tap homebrew/science
-brew unlink gcc
+#brew tap homebrew/science
+#brew unlink gcc
 brew install gcc
 brew install open-mpi
 brew install netcdf
