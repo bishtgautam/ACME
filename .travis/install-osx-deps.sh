@@ -3,8 +3,8 @@ brew update
 brew cask uninstall --force oclint
 brew upgrade cmake
 brew install gcc@7
-brew install mpich
-brew install netcdf --with-fortran
+#brew install mpich
+#brew install netcdf --with-fortran
 brew install make
 
 # Make sure the weird gfortran library links are in place.
@@ -27,20 +27,13 @@ nc-config --all
 
 nc-config --flibs
 
-cd cime/scripts
-./create_newcase --case f19_g16.ICLM45 --res f19_g16 --compset ICLM45 --mach travis-ci-osx --compiler gnu
+.travis/install-petsc.sh
 
-cd f19_g16.ICLM45
-./xmlchange DATM_CLMNCEP_YR_END=1972
-./xmlchange PIO_TYPENAME=netcdf
-./xmlchange RUNDIR=${PWD}/run
-./xmlchange EXEROOT=${PWD}/bld
-./xmlchange NTASKS=1
-./xmlchange DIN_LOC_ROOT=$PWD
-./case.setup
-alias gmake=make
-cat Macros.make
-cat env_mach_specific.xml
-./case.build
-cat bld/e3sm.bldlog.*
+ls -l ${PWD}/petsc/petsc-arch/bin/
+${PWD}/petsc/petsc-arch/bin/nc-config --all
+ls -l ${PWD}/petsc/petsc-arch/externalpackages
+head -20 ${PWD}/petsc/petsc-arch/externalpackages/mpich-3.2/config.log
+head -20 ${PWD}/petsc/petsc-arch/externalpackages/netcdf-4.4.1/config.log
+.travis/install-netcdff.sh
+
 
