@@ -5,7 +5,7 @@ brew upgrade cmake
 #brew tap homebrew/science
 #brew unlink gcc
 brew install gcc
-brew install open-mpi
+brew install mpich
 brew install netcdf
 brew install make
 
@@ -19,6 +19,9 @@ which ncdump
 gcc --version
 
 ls -l /usr/local/bin/mpi*
+ls -l /usr/local/bin/g*
+
+/usr/local/bin/mpif90 --version
 
 cd cime/scripts
 ./create_newcase --case f19_g16.ICLM45 --res f19_g16 --compset ICLM45 --mach travis-ci-osx --compiler gnu
