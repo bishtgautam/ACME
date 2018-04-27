@@ -1597,7 +1597,7 @@ lude </CFLAGS>
   <CXX_LINKER>FORTRAN</CXX_LINKER>
   <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
   <NETCDF_PATH>/usr/local</NETCDF_PATH>
-  <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -framework Accelerate</ADD_SLIBS>
+  <ADD_SLIBS>-L/usr/local/lib -lnetcdf -lnetcdff -framework Accelerate</ADD_SLIBS>
 </compiler>
 
 <compiler MACH="travis-ci-linux" COMPILER="gnu" >
