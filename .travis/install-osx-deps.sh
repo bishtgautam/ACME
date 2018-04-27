@@ -3,8 +3,8 @@ brew update
 brew install git
 brew upgrade cmake
 #brew tap homebrew/science
-#brew unlink gcc
-brew install gfortran
+brew install gcc
+#brew install gfortran
 brew install mpich
 brew install netcdf
 brew install make
