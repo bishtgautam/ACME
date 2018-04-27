@@ -21,4 +21,9 @@ ls -l /usr/local/lib/libnetcdf*
 
 /usr/local/bin/mpif90 --version
 
+which nc-config
+
+nc-config --all
+
 nc-config --flibs
+
