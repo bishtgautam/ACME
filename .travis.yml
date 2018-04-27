@@ -23,7 +23,7 @@ matrix:
     #- env: DEBUG=0; CC=gcc-5; export CXX=g++-5; export FC=gfortran-5
     #  os: linux
 
-    - env:
+    - env: CC=gcc-7; export CXX=g++-7; export FC=gfortran-7
       os: osx
 
 script: 

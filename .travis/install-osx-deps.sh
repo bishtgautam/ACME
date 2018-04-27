@@ -29,3 +29,5 @@ ls -l /usr/local/bin/mpi*
 #
 #nc-config --flibs
 
+.travis/install-petsc.sh
+
