@@ -9,6 +9,7 @@ cd petsc
 git checkout ${PETSC_GIT_HASH}
 
 export PETSC_DIR=$PWD
+export PETSC_ARCH=petsc-arch
 
 ./configure PETSC_ARCH=petsc-arch \
 --with-cc=$CC \
@@ -30,5 +31,5 @@ make all
 make test
 
 cd $PETSC_DIR/$PETSC_ARCH/bin
-ls -l 
+ls -l
 #./nc-config --all
