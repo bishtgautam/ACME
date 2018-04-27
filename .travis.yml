@@ -8,7 +8,7 @@ sudo: required
 dist: trusty # Ubuntu 14.04.
 
 compiler:
-  - gcc-5
+  - gcc
 
 install: sh ./.travis/install-$TRAVIS_OS_NAME-deps.sh
 
@@ -23,7 +23,7 @@ matrix:
     #- env: DEBUG=0; CC=gcc-5; export CXX=g++-5; export FC=gfortran-5
     #  os: linux
 
-    - env: DEBUG=0; CC=gcc-5; export CXX=g++-5; export FC=gfortran-5
+    - env:
       os: osx
 
 script: 

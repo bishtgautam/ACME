@@ -1,13 +1,14 @@
 # Install required software
 brew update
+brew cask uninstall --force oclint
 brew install git
 brew upgrade cmake
-#brew tap homebrew/science
+brew tap homebrew/science
+#brew unlink gcc
 brew install gcc@7
-#brew install gfortran
 brew install mpich
 brew install netcdf
-brew install make
+#brew install make
 
 # Make sure the weird gfortran library links are in place.
 ln -s /usr/local/lib/gcc/5/libgfortran.dylib /usr/local/lib/libgfortran.dylib
