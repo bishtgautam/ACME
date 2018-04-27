@@ -31,6 +31,7 @@ cd f19_g16.ICLM45
 ./xmlchange NTASKS=1
 ./xmlchange DIN_LOC_ROOT=$PWD
 ./case.setup
+alias gmake=make
 cat Macros.make
 cat env_mach_specific.xml
 ./case.build
