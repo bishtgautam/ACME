@@ -82,6 +82,7 @@ module clm_driver
   use filterMod              , only : setFilters
   !
   use atm2lndMod             , only : downscale_forcings
+  use atm2lndMod             , only : topo_effects_on_shortwave
   use lnd2atmMod             , only : lnd2atm
   use lnd2glcMod             , only : lnd2glc_type
   !
@@ -149,6 +150,8 @@ module clm_driver
   use VegetationDataType     , only : veg_cs, c13_veg_cs, c14_veg_cs 
   use VegetationDataType     , only : veg_ns, veg_nf  
   use VegetationDataType     , only : veg_ps, veg_pf  
+  use clm_varctl             , only : first_order_topo_effects_on_srad
+  use clm_varctl             , only : second_order_topo_effects_on_srad
 
   !----------------------------------------------------------------------------
   ! bgc interface & pflotran:
@@ -581,6 +584,12 @@ contains
        call downscale_forcings(bounds_clump, &
             filter(nc)%num_do_smb_c, filter(nc)%do_smb_c, &
             atm2lnd_vars)
+
+       if (first_order_topo_effects_on_srad) then
+          call topo_effects_on_shortwave(bounds_clump, &
+               atm2lnd_vars, nextsw_cday, declinp1, &
+               second_order_topo_effects_on_srad)
+       end if
 
        call t_stopf('drvinit')
 

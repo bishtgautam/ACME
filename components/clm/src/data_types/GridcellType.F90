@@ -15,6 +15,7 @@ module GridcellType
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
   use landunit_varcon, only : max_lunit
   use clm_varcon     , only : ispval
+  use clm_varpar     , only : ndir_hrz_angle
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -56,6 +57,11 @@ module GridcellType
      ! this is for efficiency, since most loops will go over g in the outer loop, and
      ! landunit type in the inner loop)
      integer , pointer :: landunit_indices (:,:) => null() 
+
+     real(r8), pointer :: slope_rad        (:)   ! gridcell slope in radians
+     real(r8), pointer :: aspect_rad       (:)   ! gridcell aspect in radians
+     real(r8), pointer :: sky_view_factor  (:)   ! sky view factor (unitless)
+     real(r8), pointer :: hangles_rad      (:,:) ! horizon angles in radians
 
    contains
 
@@ -103,6 +109,11 @@ contains
     allocate(this%prev_dayl (begg:endg)) ; this%prev_dayl (:) = nan
 
     allocate(this%landunit_indices(1:max_lunit, begg:endg)); this%landunit_indices(:,:) = ispval
+
+    allocate(this%slope_rad       (begg:endg))                   ; this%slope_rad       (:)   = nan
+    allocate(this%aspect_rad      (begg:endg))                   ; this%aspect_rad      (:)   = nan
+    allocate(this%sky_view_factor (begg:endg))                   ; this%sky_view_factor (:)   = nan
+    allocate(this%hangles_rad     (begg:endg, 1:ndir_hrz_angle)) ; this%hangles_rad     (:,:) = nan
 
   end subroutine grc_pp_init
 

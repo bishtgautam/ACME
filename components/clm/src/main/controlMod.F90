@@ -276,6 +276,11 @@ contains
 
     namelist /clm_inparm/ use_var_soil_thick
 
+    ! topographic effects on shortwave radiation
+    namelist /clm_inparm/ &
+         first_order_topo_effects_on_srad, &
+         second_order_topo_effects_on_srad
+
     namelist /clm_inparm / &
          use_vsfm, vsfm_satfunc_type, vsfm_use_dynamic_linesearch, &
          vsfm_lateral_model_type, vsfm_include_seepage_bc
