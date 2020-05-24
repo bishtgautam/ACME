@@ -744,6 +744,8 @@ contains
     call mpi_bcast (albice, 2, MPI_REAL8,0, mpicom, ier)
     call mpi_bcast (more_vertlayers,1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (const_climate_hist, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (first_order_topo_effects_on_srad, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (second_order_topo_effects_on_srad, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     ! glacier_mec variables
     call mpi_bcast (create_glacier_mec_landunit, 1, MPI_LOGICAL, 0, mpicom, ier)
