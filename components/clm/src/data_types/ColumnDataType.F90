@@ -5202,6 +5202,11 @@ contains
          avgflag='A', long_name='net change in total water mass', &
          ptr_col=this%dwb, c2l_scale_type='urbanf')
 
+    this%qflx_rootsoi(begc:endc,:) = spval
+    call hist_addfld2d (fname='QFLX_ROOTSOI', units='mm/s', type2d='levgrnd', &
+         avgflag='A', long_name='Root and soil water exchange', &
+         ptr_col=this%qflx_rootsoi, default='inactive')
+
     this%qflx_infl(begc:endc) = spval
     call hist_addfld1d (fname='QINFL',  units='mm/s',  &
          avgflag='A', long_name='infiltration', &
